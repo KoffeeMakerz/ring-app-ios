@@ -1,0 +1,44 @@
+# Agent instructions — PulseLoop iOS
+
+Read this before significant work in this repository.
+
+## Required pre-read
+
+1. Read `knowledge/INDEX.md` before significant work.
+2. Read the relevant `knowledge/*.md` files before modifying a subsystem.
+3. Inspect implementation code before proposing or applying changes.
+
+## Scope discipline
+
+1. Prefer small, verifiable changes.
+2. Avoid unnecessary refactors.
+3. Preserve known BLE behavior unless there is strong evidence and tests for a change.
+4. Never treat undocumented BLE assumptions as confirmed behavior.
+
+## Knowledge maintenance
+
+1. Update the knowledge base when important technical discoveries are made.
+2. Record important architectural decisions in `knowledge/decisions.md`.
+3. Record durable protocol/device findings in `knowledge/discoveries.md`.
+
+## Cross-platform check
+
+1. Check the sibling Android implementation when a behavior spans protocols or ring families.
+2. Requested sibling reference: `../PulseLoopAndroid`.
+3. Current workspace sibling path: `../ring-app-android`.
+
+## Validation before completion
+
+1. Build and test affected functionality before declaring work complete.
+2. Include protocol-level evidence (logs, packet bytes, parser path) when touching BLE.
+3. Preserve upstream LICENSE and attribution requirements.
+
+## BLE evidence policy
+
+Use certainty labels in knowledge docs where relevant:
+
+- `Status: source-confirmed`
+- `Status: hardware-verified`
+- `Status: unverified`
+
+Only use `hardware-verified` when explicit real-device evidence exists.
