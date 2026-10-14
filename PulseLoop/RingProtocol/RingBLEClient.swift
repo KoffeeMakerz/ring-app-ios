@@ -474,8 +474,11 @@ final class RingBLEClient: NSObject {
     func adoptRememberedIdentity() {
         // The remembered family already *is* the user's choice — `beginConnect` persisted whichever
         // coordinator it selected — so a restored session re-adopts the right driver for free.
-        installDriver(Self.coordinatorType(preferredFamily: nil, autoMatched: lastKnownDeviceType))
+        // Name and model go first: `installDriver` grants per-model extras only when the ring's own
+        // (here: cached GAP) name identifies the remembered model (`modelExtraCapabilities`).
+        activeAdvertisedName = peripheral?.name
         activeWearableModelID = lastKnownWearableModelID
+        installDriver(Self.coordinatorType(preferredFamily: nil, autoMatched: lastKnownDeviceType))
     }
 
     /// Fold the ring's self-reported capability bitmap into the active capability set.
