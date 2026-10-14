@@ -658,6 +658,10 @@ final class RingSyncCoordinator {
         // Refused during a workout: `0x69 <type>` takes over the ring's single realtime engine, so the
         // workout would lose its live bpm for the whole run.
         guard !workoutHRActive else { return nil }
+        // Refused while another spot measurement holds the sensor (Android's `measureVitalOnly`): each
+        // run's `0x6A` stop tears down the ring's one realtime engine, ending the other run with it.
+        guard ![hrState, spo2State, bpState].contains(.measuring),
+              !spotVitalStates.values.contains(.measuring) else { return nil }
         spotVitalStates[vital] = .measuring
         measureNotWorn = false
         spotVitalNoReading = nil
