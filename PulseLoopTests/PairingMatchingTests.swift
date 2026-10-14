@@ -357,6 +357,10 @@ final class PairingMatchingTests: XCTestCase {
         XCTAssertEqual(WearableModel.colmiRing2Pro.family, .colmiR02)
         XCTAssertEqual(WearableModel.colmiRing2Pro.extraCapabilities, [.manualHrv, .manualStress, .manualTemperature])
         XCTAssertTrue(ColmiCoordinator().capabilities.isDisjoint(with: [.manualHrv, .manualStress, .manualTemperature]))
+        // Only hardware-validated models carry extras.
+        for model in WearableModel.catalog where model.id != WearableModel.colmiRing2Pro.id {
+            XCTAssertTrue(model.extraCapabilities.isEmpty, "\(model.id) has unvalidated extras")
+        }
         // A serial-suffixed name is some other product, not this one.
         XCTAssertNotEqual(WearableModel.model(advertisedName: "COLMI Ring 2 Pro_AB12")?.id, "colmi-ring-2-pro")
     }
