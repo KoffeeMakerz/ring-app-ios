@@ -215,6 +215,12 @@ protocol RingSyncEngine: AnyObject {
     /// (YCBT) implement these; the default is a no-op (see the extension below).
     func startHRV()
     func stopHRV()
+    /// True when this family measures HRV / stress / temperature on demand by streaming values until
+    /// stopped (`startSpotVital`) rather than through `startHRV`'s first-value poll. Default false.
+    var streamsSpotVitals: Bool { get }
+    func startSpotVital(_ vital: SpotVital)
+    /// Stop what `startSpotVital` began; `settled` is the reading the app settled on (nil = none).
+    func stopSpotVital(_ vital: SpotVital, settled: Double?)
     func findDevice()
     func setGoal(steps: Int)
 
@@ -279,6 +285,11 @@ extension RingSyncEngine {
     /// Default: devices without a dedicated HRV mode (jring/Colmi) don't stream on-demand HRV.
     func startHRV() {}
     func stopHRV() {}
+
+    /// Default: no family but Colmi streams on-demand HRV / stress / temperature.
+    var streamsSpotVitals: Bool { false }
+    func startSpotVital(_ vital: SpotVital) {}
+    func stopSpotVital(_ vital: SpotVital, settled: Double?) {}
 
     /// Default: devices without a blood-pressure sweep (Colmi) have nothing to measure.
     func startBloodPressure() {}
