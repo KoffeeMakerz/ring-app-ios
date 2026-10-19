@@ -90,9 +90,9 @@ struct SimulatorPanelView: View {
                         Text("Command log").font(EFont.body(15, .bold))
                         Spacer()
                         Button("Clear") { sim.clearLog() }.font(EFont.body(13, .semibold)).foregroundStyle(EColor.textSecondary)
-                        ShareLink(item: sim.log.reversed().map { "\($0.time) \($0.text)" }.joined(separator: "\n")) { Text("Export").font(EFont.body(13, .semibold)) }
+                        ShareLink(item: sim.entries.reversed().map { "\($0.time) \($0.text)" }.joined(separator: "\n")) { Text("Export").font(EFont.body(13, .semibold)) }
                     }
-                    ForEach(sim.log.prefix(40)) { line in
+                    ForEach(sim.entries.prefix(40)) { line in
                         HStack(alignment: .top, spacing: 10) {
                             Text(line.time).foregroundStyle(EColor.textMuted)
                             Text(line.text).foregroundStyle(color(line.kind))

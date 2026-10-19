@@ -90,7 +90,7 @@ final class SimulatedRing {
     var lowBattery = false
     var mirrorToPhoneHaptics = true
     var showOverlay = true
-    private(set) var log: [LogLine] = []
+    private(set) var entries: [LogLine] = []
     private(set) var currentBPM: Int?
 
     private var sent = 0
@@ -134,11 +134,11 @@ final class SimulatedRing {
     func log(_ text: String, _ kind: LogLine.Kind = .info) {
         let ms = Int(Date().timeIntervalSince(start) * 1000)
         let time = String(format: "%02d:%02d.%03d", ms / 60000, (ms / 1000) % 60, ms % 1000)
-        log.insert(LogLine(time: time, text: text, kind: kind), at: 0)
-        if log.count > 200 { log.removeLast(log.count - 200) }
+        entries.insert(LogLine(time: time, text: text, kind: kind), at: 0)
+        if entries.count > 200 { entries.removeLast(entries.count - 200) }
     }
 
-    func clearLog() { log.removeAll() }
+    func clearLog() { entries.removeAll() }
 
     private func startHeartStream() {
         hrTask?.cancel()

@@ -16,7 +16,7 @@ struct TouchPattern: Codable, Hashable, Identifiable {
     /// Motor-on segments as (startMs, lengthMs).
     var pulses: [(start: Int, length: Int)] {
         var t = 0
-        var result: [(Int, Int)] = []
+        var result: [(start: Int, length: Int)] = []
         for (i, d) in durationsMs.enumerated() {
             if isOn(segment: i) { result.append((t, d)) }
             t += d

@@ -35,7 +35,7 @@ final class RingHapticsService {
 
     /// The pulses that will actually be sent, after clamping to the ring's minimum gap and fixed buzz length.
     func plan(_ pattern: TouchPattern, profile: RingCapabilityProfile) -> [(start: Int, length: Int, clampedFrom: Int?)] {
-        var result: [(Int, Int, Int?)] = []
+        var result: [(start: Int, length: Int, clampedFrom: Int?)] = []
         var lastStart = Int.min / 2
         var shift = 0
         for pulse in pattern.pulses {

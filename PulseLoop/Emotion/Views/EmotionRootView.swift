@@ -147,7 +147,7 @@ struct EmotionTabView: View {
     @Environment(EmotionRouter.self) private var router
 
     var body: some View {
-        @Bindable var router = router
+        @Bindable var router = self.router
         TabView(selection: $router.tab) {
             NavigationStack(path: $router.homePath) { HomeView().emotionDestinations() }
                 .tabItem { Label("Home", systemImage: "house") }.tag(ETab.home)

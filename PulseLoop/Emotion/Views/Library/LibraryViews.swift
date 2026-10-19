@@ -1,6 +1,7 @@
 import Photos
 import SwiftData
 import SwiftUI
+import UIKit
 
 struct LibraryView: View {
     @Environment(EmotionRouter.self) private var router
