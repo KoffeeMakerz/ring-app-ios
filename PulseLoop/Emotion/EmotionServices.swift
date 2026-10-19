@@ -21,7 +21,7 @@ final class EmotionServices {
         #endif
         self.simulator = simulator
         self.haptics = RingHapticsService(client: client, simulator: simulator)
-        self.heart = LiveHeartRate(coordinator: coordinator, simulator: simulator)
+        self.heart = LiveHeartRate(client: client, coordinator: coordinator, simulator: simulator)
     }
 
     func playback(for experience: Experience) -> ExperiencePlayback {

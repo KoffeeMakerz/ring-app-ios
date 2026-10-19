@@ -119,6 +119,10 @@ struct MeditationSessionView: View {
     @State private var hrStart: Int?
     @State private var finished = false
     @State private var feelAfter: String?
+    @State private var showPairing = false
+    @State private var hrvBefore: Int?
+    @State private var hrvAfter: Int?
+    @State private var measuringHRV = false
 
     private var profile: EmotionProfile? { profiles.first }
     private var inS: Double { profile?.breathInSeconds ?? 5 }
@@ -138,8 +142,14 @@ struct MeditationSessionView: View {
 
     var body: some View {
         Group { if finished { summary } else { session } }
-            .onAppear { if profile?.liveHeartFeedback ?? true { services.heart.start() } }
+            .onAppear {
+                if profile?.liveHeartFeedback ?? true { services.heart.start() }
+                hrvBefore = latestHRV(within: 6 * 3600)
+            }
             .onDisappear { services.heart.stop(); services.haptics.stop(sendStop: false) }
+            .sheet(isPresented: $showPairing) {
+                PairingView(onConnected: { showPairing = false }, onSkip: { showPairing = false })
+            }
     }
 
     private var session: some View {
@@ -166,7 +176,7 @@ struct MeditationSessionView: View {
             }
             .frame(height: 300)
             Spacer()
-            if showHeart, profile?.liveHeartFeedback ?? true { heartPanel }
+            if showHeart { heartPanel }
             Spacer(minLength: 16)
             HStack(spacing: 28) {
                 Button { showHeart.toggle() } label: { Image(systemName: showHeart ? "eye.slash" : "eye").frame(width: 52, height: 52).background(EColor.calmCard, in: Circle()) }
@@ -186,14 +196,63 @@ struct MeditationSessionView: View {
         .task { await runClock() }
     }
 
+    @ViewBuilder
     private var heartPanel: some View {
+        let heartOn = profile?.liveHeartFeedback ?? true
+        switch heartOn ? services.heart.status : .idle {
+        case .idle:
+            heartNotice(icon: "heart.slash", title: "Live heart feedback is off",
+                        text: "Turn it on to see your heart rhythm and coherence from the ring.",
+                        action: "Turn on") {
+                profile?.liveHeartFeedback = true
+                try? context.save()
+                services.heart.start()
+            }
+        case .noRing:
+            heartNotice(icon: "circle.dashed", title: "No ring connected",
+                        text: "Connect your ring to see heart rate and coherence. The breathing guide works without it.",
+                        action: "Connect ring") { showPairing = true }
+        case .starting:
+            heartNotice(icon: "waveform.path.ecg", title: "Starting heart rate…",
+                        text: "Keep your hand still. The ring usually needs 10–20 seconds for the first reading.",
+                        action: nil, onAction: {})
+        case .stalled where services.heart.samples.isEmpty:
+            heartNotice(icon: "exclamationmark.circle", title: "No pulse from the ring yet",
+                        text: "Make sure the ring is snug with the sensor against your palm side, and keep your hand still.",
+                        action: nil, onAction: {})
+        case .live, .stalled:
+            liveHeartPanel
+        }
+    }
+
+    private func heartNotice(icon: String, title: String, text: String, action: String?, onAction: @escaping () -> Void) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: icon).font(.system(size: 18)).foregroundStyle(Color(hex: "#7FB2F0")).frame(width: 24)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title).font(EFont.body(15, .bold))
+                Text(text).font(EFont.body(13)).foregroundStyle(EColor.textSecondary).fixedSize(horizontal: false, vertical: true)
+                if let action {
+                    Button(action, action: onAction)
+                        .font(EFont.body(14, .bold)).foregroundStyle(EColor.calmGround)
+                        .padding(.horizontal, 16).frame(height: 36).background(Color(hex: "#7FB2F0"), in: Capsule())
+                        .padding(.top, 6)
+                }
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(16).frame(maxWidth: .infinity, alignment: .leading).eCard(EColor.calmCard, radius: 22)
+    }
+
+    private var liveHeartPanel: some View {
         let level = services.heart.coherence(breathPeriodS: inS + outS)
         let samples = services.heart.samples.suffix(40)
+        let stalled = services.heart.status == .stalled
         return VStack(alignment: .leading, spacing: 10) {
             HStack {
                 Text("Heart rhythm").font(EFont.body(15, .bold))
                 Spacer()
-                Text(services.heart.current.map { "Signal good · \($0) bpm" } ?? "Waiting for ring…").font(EFont.body(12)).foregroundStyle(EColor.textSecondary)
+                Text(stalled ? "Signal lost · hold still" : services.heart.current.map { "\($0) bpm" } ?? "")
+                    .font(EFont.body(12)).foregroundStyle(stalled ? EColor.accent : EColor.textSecondary)
             }
             Sparkline(values: samples.map(Double.init)).stroke(Color(hex: "#7FB2F0"), style: StrokeStyle(lineWidth: 2.5, lineJoin: .round))
                 .frame(height: 64)
@@ -205,7 +264,7 @@ struct MeditationSessionView: View {
             }
             HStack {
                 Text("Low"); Spacer()
-                Text(level.map { "\($0.name) coherence" } ?? "Measuring…").fontWeight(.bold).foregroundStyle(EColor.text)
+                Text(level.map { "\($0.name) coherence" } ?? (isBreathingPhase ? "Measuring… \(min(100, services.heart.secondsOfData * 5))%" : "Shown during paced breathing")).fontWeight(.bold).foregroundStyle(EColor.text)
                 Spacer(); Text("High")
             }
             .font(EFont.body(12)).foregroundStyle(EColor.textSecondary)
@@ -230,7 +289,7 @@ struct MeditationSessionView: View {
             phaseSecondsLeft = nowInhale ? inS - pos : cycle - pos
             if breathT.truncatingRemainder(dividingBy: 1) == 0 {
                 elapsed += 1
-                if hrStart == nil { hrStart = services.heart.current }
+                if hrStart == nil, let first = services.heart.samples.first { hrStart = first }
                 if isBreathingPhase, let level = services.heart.coherence(breathPeriodS: cycle) { coherence[level, default: 0] += 1 }
             }
         }
@@ -273,9 +332,11 @@ struct MeditationSessionView: View {
                 .padding(16).eCard()
             }
             HStack(spacing: 10) {
-                stat("Heart rate", value: hrStart.flatMap { s in services.heart.current.map { "\(s) → \($0)" } } ?? "—", unit: "bpm, start to end")
+                stat("Heart rate", value: hrStart.flatMap { s in services.heart.current.map { "\(s) → \($0)" } } ?? "—",
+                     unit: hrStart == nil ? "no ring data this session" : "bpm, start to end")
                 stat("Session", value: timeString(Double(elapsed)), unit: "minutes")
             }
+            hrvCard
             Text("How do you feel now?").font(EFont.body(15, .semibold)).padding(.top, 10)
             HStack(spacing: 8) {
                 ForEach(["Calmer", "About the same", "Restless"], id: \.self) { t in
@@ -302,6 +363,56 @@ struct MeditationSessionView: View {
         }
         .padding(.horizontal, 20).padding(.bottom, 24)
         .emotionScreen()
+    }
+
+    /// HRV can't be streamed by these rings; show the ring's own readings and offer a spot measurement.
+    private var hrvCard: some View {
+        let canMeasure = !services.heart.usingSimulator && services.client.state == .connected
+            && services.client.activeCapabilities.contains(.manualHrv)
+        let value: String = {
+            switch (hrvBefore, hrvAfter) {
+            case let (b?, a?): return "\(b) → \(a)"
+            case let (nil, a?): return "\(a)"
+            case let (b?, nil): return "\(b)"
+            default: return "—"
+            }
+        }()
+        return HStack(spacing: 14) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("HRV").font(EFont.body(12)).foregroundStyle(EColor.textSecondary)
+                Text(value).font(EFont.body(22, .bold))
+                Text(hrvAfter != nil ? "ms, before → now" : hrvBefore != nil ? "ms, latest ring reading" : "ms · no recent ring reading")
+                    .font(EFont.body(12)).foregroundStyle(EColor.textSecondary)
+            }
+            Spacer()
+            if canMeasure {
+                Button {
+                    measuringHRV = true
+                    Task {
+                        let v = await services.coordinator.measureHRV()
+                        if let v { hrvAfter = v }
+                        measuringHRV = false
+                    }
+                } label: {
+                    Text(measuringHRV ? "Measuring…" : "Measure now").font(EFont.body(14, .bold))
+                        .foregroundStyle(EColor.calmGround).padding(.horizontal, 16).frame(height: 40)
+                        .background(Color(hex: "#7FB2F0"), in: Capsule())
+                }
+                .disabled(measuringHRV)
+            }
+        }
+        .padding(16).frame(maxWidth: .infinity, alignment: .leading).eCard()
+    }
+
+    /// Most recent HRV the ring has recorded (PulseLoop's `Measurement` store).
+    private func latestHRV(within seconds: TimeInterval) -> Int? {
+        let kind = MeasurementKind.hrv.rawValue
+        let since = Date().addingTimeInterval(-seconds)
+        var d = FetchDescriptor<Measurement>(
+            predicate: #Predicate { $0.kindRaw == kind && $0.timestamp >= since },
+            sortBy: [SortDescriptor(\.timestamp, order: .reverse)])
+        d.fetchLimit = 1
+        return (try? context.fetch(d))?.first.map { Int($0.value.rounded()) }
     }
 
     private func stat(_ title: String, value: String, unit: String) -> some View {

@@ -12,7 +12,7 @@ import WidgetKit
 struct PulseLoopLiveActivityControl: ControlWidget {
     var body: some ControlWidgetConfiguration {
         StaticControlConfiguration(
-            kind: "dev.emotionring.ios.PulseLoopLiveActivity",
+            kind: "dev.emotionringmy.ios.PulseLoopLiveActivity",
             provider: Provider()
         ) { value in
             ControlWidgetToggle(

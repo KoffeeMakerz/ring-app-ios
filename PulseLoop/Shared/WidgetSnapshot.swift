@@ -20,7 +20,7 @@ import SwiftUI
 // MARK: - Storage location
 
 enum PulseWidgetStore {
-    static let suite = "group.dev.emotionring.ios"
+    static let suite = "group.dev.emotionringmy.ios"
     static let fileName = "widget-snapshot.json"
     /// Shared-defaults key holding the Date of the last background-triggered timeline reload
     /// (foreground reloads are free of the WidgetKit refresh budget; background ones are throttled).
