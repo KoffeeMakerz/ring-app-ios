@@ -4,6 +4,8 @@
 <dict>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Show the photos you pick in your experience slideshows. Photos stay on this phone and are never uploaded.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Attach a photo to ask the AI Coach about it.</string>
 	<!--

@@ -17,6 +17,7 @@ struct PulseLoopApp: App {
     @State private var coordinator: RingSyncCoordinator
     @State private var gpsRecorder: GpsRouteRecorder
     @State private var liveWorkout: LiveWorkoutManager
+    @State private var emotion: EmotionServices
     /// Retained for app lifetime so it keeps draining the event bus into SwiftData.
     private let persistence: EventPersistenceSubscriber
     /// Retained so it keeps regenerating Today/Sleep coach summaries on new data.
@@ -88,6 +89,7 @@ struct PulseLoopApp: App {
         _coordinator = State(initialValue: coordinator)
         _gpsRecorder = State(initialValue: gps)
         _liveWorkout = State(initialValue: LiveWorkoutManager(coordinator: coordinator, gps: gps, context: container.mainContext))
+        _emotion = State(initialValue: EmotionServices(client: client, coordinator: coordinator))
 
         let subscriber = EventPersistenceSubscriber(context: container.mainContext)
         self.persistence = subscriber
@@ -141,7 +143,14 @@ struct PulseLoopApp: App {
 
     var body: some Scene {
         WindowGroup {
-            RootAppView()
+            Group {
+                if UserDefaults.standard.bool(forKey: EmotionServices.legacyUIKey) {
+                    RootAppView()
+                } else {
+                    EmotionRootView()
+                }
+            }
+                .environment(emotion)
                 .environment(bleClient)
                 .environment(coordinator)
                 .environment(gpsRecorder)

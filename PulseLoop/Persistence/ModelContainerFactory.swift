@@ -29,7 +29,7 @@ enum ModelContainerFactory {
             WearableLog.self,
             MealEntry.self,
             CachedFoodProduct.self
-        ])
+        ] + EmotionSchema.models)
         
         let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: inMemory)
         return try ModelContainer(for: schema, configurations: [config])
