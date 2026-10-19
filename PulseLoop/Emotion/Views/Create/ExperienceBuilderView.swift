@@ -69,7 +69,7 @@ struct ExperienceBuilderView: View {
                     TouchPickerView(feeling: feeling, selection: $touch)
                 } label: {
                     HStack(spacing: 12) {
-                        TouchGlyph(pattern: touch, color: feeling.color, scale: 0.02).frame(width: 80, alignment: .leading)
+                        TouchGlyph(pattern: touch, color: feeling.color, scale: 0.02, maxWidth: 76).frame(width: 80, alignment: .leading)
                         VStack(alignment: .leading, spacing: 2) {
                             Text(touch.id.hasPrefix("feeling.") ? "Ring touch · suggested" : "Ring touch").font(EFont.body(12)).foregroundStyle(EColor.textSecondary)
                             Text(touch.name).font(EFont.body(15, .bold))

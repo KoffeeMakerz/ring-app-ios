@@ -281,11 +281,12 @@ struct TrainingSessionView: View {
                     .shadow(color: .black.opacity(0.4), radius: 6)
                 VStack(alignment: .leading, spacing: 18) {
                     HStack(spacing: 14) {
-                        TouchGlyph(pattern: feeling.touch, color: feeling.color, scale: 0.02, height: 12)
+                        TouchGlyph(pattern: p.touch, color: feeling.color, scale: 0.02, height: 12, maxWidth: 64)
                             .opacity(p.isInCue ? 1 : 0.5)
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(p.isInCue ? "Ring is playing \(feeling.name.lowercased())" : "Next ring cue coming").font(EFont.body(15, .semibold))
-                            Text("Notice the feeling as it buzzes").font(EFont.body(13)).foregroundStyle(EColor.textSecondary)
+                            Text(p.isInCue ? "Ring is playing \(feeling.name.lowercased())"
+                                 : p.autoCues ? "Next ring cue coming" : "Tap the ring button when it peaks").font(EFont.body(15, .semibold))
+                            Text(p.autoCues ? "Notice the feeling as it buzzes" : "You choose the moments in this song").font(EFont.body(13)).foregroundStyle(EColor.textSecondary)
                         }
                     }
                     .padding(14).frame(maxWidth: .infinity, alignment: .leading)
@@ -308,7 +309,7 @@ struct TrainingSessionView: View {
                         Spacer()
                         circleButton("dot.radiowaves.left.and.right", "Replay ring cue now") { p.playCueNow() }
                     }
-                    Button("Finish and check in") { p.pause(); stage = .reflect; services.haptics.play(feeling.touch) }
+                    Button("Finish and check in") { p.pause(); stage = .reflect; services.haptics.play(p.touch) }
                         .buttonStyle(TextLinkButtonStyle()).frame(maxWidth: .infinity)
                 }
                 .padding(20)
@@ -319,7 +320,7 @@ struct TrainingSessionView: View {
         }
         .foregroundStyle(EColor.text)
         .background(EColor.ground)
-        .onChange(of: p.progress >= 1) { _, done in if done { stage = .reflect; services.haptics.play(feeling.touch) } }
+        .onChange(of: p.progress >= 1) { _, done in if done { stage = .reflect; services.haptics.play(p.touch) } }
     }
 
     private func circleButton(_ icon: String, _ label: String, filled: Bool = true, action: @escaping () -> Void) -> some View {
@@ -436,7 +437,7 @@ struct CueTimeline: View {
                 ZStack(alignment: .leading) {
                     Capsule().fill(EColor.line).frame(height: 4)
                     Capsule().fill(EColor.text).frame(width: w * playback.progress, height: 4)
-                    ForEach(Array(playback.track.cueMarkersS.enumerated()), id: \.offset) { i, s in
+                    ForEach(Array((playback.autoCues ? playback.track.cueMarkersS : []).enumerated()), id: \.offset) { i, s in
                         let played = Double(s) <= playback.position
                         Circle()
                             .fill(played ? color : .clear)
@@ -449,7 +450,9 @@ struct CueTimeline: View {
             .frame(height: 16)
             HStack {
                 Text(timeString(playback.position)); Spacer()
-                Text("Cue \(min(playback.nextCueIndex + 1, playback.track.cueMarkersS.count)) of \(playback.track.cueMarkersS.count)"); Spacer()
+                Text(playback.autoCues
+                     ? "Cue \(min(playback.nextCueIndex + 1, playback.track.cueMarkersS.count)) of \(playback.track.cueMarkersS.count)"
+                     : "\(playback.tapCount) \(playback.tapCount == 1 ? "tap" : "taps")"); Spacer()
                 Text(timeString(playback.duration))
             }
             .font(EFont.body(12)).foregroundStyle(EColor.textMuted)

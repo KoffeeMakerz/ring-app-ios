@@ -63,7 +63,7 @@ struct TouchPickerView: View {
                 Text(services.haptics.isPlaying ? "Playing on your ring" : (services.haptics.isRingConnected ? "Ring connected · tap play to feel" : "Ring not connected"))
                     .font(EFont.body(13)).foregroundStyle(EColor.textSecondary)
                 Spacer()
-                Button("Use \(selection.name.replacingOccurrences(of: " touch", with: ""))") { dismiss() }
+                Button(selection.name.count > 12 ? "Use this touch" : "Use \(selection.name.replacingOccurrences(of: " touch", with: ""))") { dismiss() }
                     .buttonStyle(PrimaryButtonStyle(height: 48)).frame(width: 170)
             }
             .padding(.horizontal, 20).padding(.vertical, 12)
@@ -77,7 +77,7 @@ struct TouchPickerView: View {
         HStack(spacing: 12) {
             Button { selection = pattern } label: {
                 HStack(spacing: 12) {
-                    TouchGlyph(pattern: pattern, color: color, scale: 0.02).frame(width: 70, alignment: .leading)
+                    TouchGlyph(pattern: pattern, color: color, scale: 0.02, maxWidth: 66).frame(width: 70, alignment: .leading)
                     VStack(alignment: .leading, spacing: 2) {
                         Text(pattern.name).font(EFont.body(15, .bold))
                         Text(note).font(EFont.body(12)).foregroundStyle(EColor.textSecondary)
@@ -105,8 +105,9 @@ struct TouchComposerView: View {
     @Environment(EmotionServices.self) private var services
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
-    @State private var blocks: [TouchBlock] = [.doubleTap, .shortRest, .tap]
+    @State private var blocks: [TouchBlock] = []
     @State private var name = "My touch"
+    @State private var seeded = false
 
     private var total: Int { TouchBlock.totalMs(blocks) }
     private var pattern: TouchPattern { TouchBlock.compose(blocks, name: name) }
@@ -119,8 +120,12 @@ struct TouchComposerView: View {
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 6) {
                             ForEach([Feeling.gratitude, .love, .joy, .calm]) { f in
-                                Button(f.name) { blocks = f.blocks }.font(EFont.body(13, .semibold)).foregroundStyle(EColor.text)
-                                    .padding(.horizontal, 12).frame(height: 34).background(EColor.card, in: Capsule())
+                                Button { blocks = f.blocks } label: {
+                                    Text(f.name).font(EFont.body(13, .semibold)).foregroundStyle(EColor.text)
+                                        .padding(.horizontal, 12).frame(height: 34).background(EColor.card, in: Capsule())
+                                        .contentShape(Capsule())
+                                }
+                                .buttonStyle(.plain)
                             }
                         }
                     }
@@ -172,11 +177,14 @@ struct TouchComposerView: View {
                 HStack(spacing: 8) {
                     ForEach(TouchBlock.rests) { b in
                         let fits = !blocks.isEmpty && TouchBlock.totalMs(blocks + [b]) <= TouchPattern.maxDurationMs
-                        Button(b.name) { if fits { blocks.append(b) } }
-                            .font(EFont.body(14, .semibold)).foregroundStyle(EColor.text)
-                            .frame(maxWidth: .infinity, minHeight: 48)
-                            .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Color(hex: "#4A4160"), style: StrokeStyle(lineWidth: 1.5, dash: [5, 4])))
-                            .disabled(!fits).opacity(fits ? 1 : 0.35)
+                        Button { if fits { blocks.append(b) } } label: {
+                            Text(b.name).font(EFont.body(14, .semibold)).foregroundStyle(EColor.text)
+                                .frame(maxWidth: .infinity, minHeight: 48)
+                                .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Color(hex: "#4A4160"), style: StrokeStyle(lineWidth: 1.5, dash: [5, 4])))
+                                .contentShape(RoundedRectangle(cornerRadius: 14))
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(!fits).opacity(fits ? 1 : 0.35)
                     }
                 }
                 Text("Up to 8 seconds. A small gap is added between touches so each one is felt clearly.")
@@ -185,6 +193,7 @@ struct TouchComposerView: View {
             .padding(.horizontal, 20).padding(.bottom, 32)
         }
         .emotionScreen()
+        .onAppear { if !seeded { blocks = feeling.blocks; seeded = true } }
         .navigationTitle("Create your own touch").navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {

@@ -16,7 +16,11 @@ final class ExperiencePlayback {
     private(set) var cueFiredAt: Date? = nil
     var slideCount: Int = 6
     var slideSeconds: Double = 8
+    /// Mute switch for the ring during this session.
     var cuesEnabled = true
+    /// Auto = fire at the song's cue markers; false = the person taps "replay cue" themselves.
+    var autoCues = true
+    private(set) var tapCount = 0
 
     private let haptics: RingHapticsService
     private var player: AVAudioPlayer?
@@ -83,10 +87,13 @@ final class ExperiencePlayback {
         haptics.stop(sendStop: false)
     }
 
-    func playCueNow() { fire(index: lastCueIndex ?? 0) }
+    func playCueNow() {
+        if !autoCues { tapCount += 1 }
+        fire(index: lastCueIndex ?? 0)
+    }
 
     private func checkCues() {
-        guard cuesEnabled else { return }
+        guard cuesEnabled, autoCues else { return }
         for (i, marker) in track.cueMarkersS.enumerated() where !firedCues.contains(i) && position >= Double(marker) && position < Double(marker) + 2 {
             fire(index: i)
         }
