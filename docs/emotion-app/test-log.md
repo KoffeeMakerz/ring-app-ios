@@ -16,7 +16,7 @@ What was tested, how, what broke, and what is still untested. Add a new dated se
 
 ## Round 1 — 2026-10-19 (iOS, simulator)
 
-Commits: `21a8507`, `63e7528`, plus the round-1b fixes commit.
+Commits: `21a8507`, `63e7528`, plus `044958a`.
 
 ### Tested and passing
 
