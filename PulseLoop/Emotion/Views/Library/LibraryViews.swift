@@ -103,7 +103,7 @@ struct ExperienceCard: View {
             HStack(spacing: 12) {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(experience.title.isEmpty ? "Untitled vision" : experience.title).font(EFont.body(16, .bold))
-                    Text("\(experience.feeling.name) · \(experience.visionPoints.count) points · \(experience.imagesLabel)").font(EFont.body(13)).foregroundStyle(EColor.textSecondary)
+                    Text("\(experience.feeling.name) · \(experience.visionPoints.count) \(experience.visionPoints.count == 1 ? "point" : "points") · \(experience.imagesLabel)").font(EFont.body(13)).foregroundStyle(EColor.textSecondary)
                 }
                 Spacer()
                 Button { router.push(.builder(experience.id)) } label: { Image(systemName: "pencil").frame(width: 44, height: 44) }
@@ -208,12 +208,14 @@ struct SlideshowView: View {
     let experience: Experience?
     let index: Int
     let fallback: Feeling
+    /// Placeholder caption for app images; off where text sits over the slide.
+    var showLabel = true
     var body: some View {
         let ids = experience?.photoIdentifiers ?? []
         ZStack {
             SlideTile(experience: experience, index: index, fallback: fallback).id(index)
                 .transition(.opacity)
-            if ids.isEmpty {
+            if ids.isEmpty && showLabel {
                 Text("[\(experience?.imageSetID.flatMap { id in ImageSet.all.first { $0.id == id }?.name } ?? "App image") \(index + 1)]".uppercased())
                     .font(EFont.body(12, .medium)).tracking(1).foregroundStyle(Color(hex: "#C9AE86"))
             }
@@ -227,6 +229,7 @@ struct SlideshowView: View {
 struct ExperiencePlayerView: View {
     let experience: Experience
     @Environment(EmotionServices.self) private var services
+    @Environment(EmotionRouter.self) private var router
     @Environment(\.dismiss) private var dismiss
     @State private var playback: ExperiencePlayback?
     @State private var showVision = false
@@ -291,7 +294,7 @@ struct ExperiencePlayerView: View {
         }
         .onDisappear { playback?.stop() }
         .sheet(isPresented: $showVision) {
-            VisionSheet(experience: experience)
+            VisionSheet(experience: experience).environment(router)
                 .presentationDetents([.medium, .large])
                 .presentationBackground(EColor.tabBar)
         }

@@ -266,7 +266,7 @@ struct VibeTestView: View {
                         answer("One long") {
                             if gapIndex < gaps.count - 1 { gapIndex += 1; playPair() } else { step = 2 }
                         }
-                        answer("Done") { step = 2 }
+                        answer("That's fine") { step = 2 }
                     }
                 }
                 checkCard(index: 2, title: "Comfort", subtitle: "Too strong, just right, or too weak?") {

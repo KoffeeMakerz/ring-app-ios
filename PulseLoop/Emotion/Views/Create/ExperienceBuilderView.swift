@@ -1,4 +1,5 @@
 import PhotosUI
+import UIKit
 import SwiftData
 import SwiftUI
 
@@ -38,7 +39,8 @@ struct ExperienceBuilderView: View {
                     ForEach(points.indices, id: \.self) { i in
                         HStack(spacing: 10) {
                             Circle().fill(feeling.color).frame(width: 8, height: 8)
-                            TextField("Add a detail of your vision", text: $points[i], axis: .vertical).font(EFont.body(15))
+                            TextField("Add a detail of your vision", text: $points[i]).font(EFont.body(15))
+                                .submitLabel(i == points.count - 1 ? .done : .next)
                             Button { points.remove(at: i) } label: { Image(systemName: "xmark").font(.system(size: 13, weight: .bold)).frame(width: 40, height: 40) }
                                 .foregroundStyle(EColor.textMuted).accessibilityLabel("Remove point \(i + 1)")
                         }
@@ -112,7 +114,12 @@ struct ExperienceBuilderView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .confirmationAction) { Button("Save") { _ = save(); dismiss() }.fontWeight(.bold) }
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button("Done") { UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil) }
+            }
         }
+        .toolbar(.hidden, for: .tabBar)
         .onAppear(perform: load)
         .onDisappear { preview?.stop() }
         .sheet(isPresented: $showTrackPicker) { TrackPickerSheet(selected: $track) }

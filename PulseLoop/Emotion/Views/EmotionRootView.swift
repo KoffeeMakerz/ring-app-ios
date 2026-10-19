@@ -88,12 +88,8 @@ struct EmotionRootView: View {
             } else {
                 EmotionOnboardingView()
             }
-            if services.simulator.isEnabled && services.simulator.showOverlay {
-                SimRingOverlay()
-                    .padding(.top, 120)
-                    .padding(.trailing, 10)
-            }
         }
+        .simRingOverlay()
         .environment(router)
         .preferredColorScheme(.dark)
         .tint(EColor.accent)
@@ -102,16 +98,16 @@ struct EmotionRootView: View {
             notificationBridge.install { feeling in router.cue = CueRequest(feeling: feeling, eventID: nil) }
         }
         .fullScreenCover(item: $router.training) { request in
-            TrainingSessionView(request: request)
+            TrainingSessionView(request: request).simRingOverlay().environment(router)
         }
         .fullScreenCover(item: $router.experienceToPlay) { experience in
-            ExperiencePlayerView(experience: experience)
+            ExperiencePlayerView(experience: experience).simRingOverlay().environment(router)
         }
         .fullScreenCover(item: $router.meditation) { kind in
-            MeditationSessionView(kind: kind)
+            MeditationSessionView(kind: kind).simRingOverlay().environment(router)
         }
         .sheet(item: $router.cue) { cue in
-            CueReceivedView(request: cue)
+            CueReceivedView(request: cue).environment(router)
         }
     }
 }
@@ -183,10 +179,30 @@ extension View {
 }
 
 /// Floating simulated ring bubble shown over every screen in debug (6.3).
+extension View {
+    /// Shows the floating simulated-ring control when the simulator and its overlay are on (debug use).
+    func simRingOverlay() -> some View { modifier(SimRingOverlayHost()) }
+}
+
+struct SimRingOverlayHost: ViewModifier {
+    @Environment(EmotionServices.self) private var services
+    func body(content: Content) -> some View {
+        content.overlay(alignment: .bottomTrailing) {
+            if services.simulator.isEnabled && services.simulator.showOverlay {
+                SimRingOverlay().padding(.trailing, 10).padding(.bottom, 150)
+            }
+        }
+    }
+}
+
 struct SimRingOverlay: View {
     @Environment(EmotionServices.self) private var services
     @Environment(EmotionRouter.self) private var router
     @State private var open = false
+    /// The overlay can be dragged out of the way; position is kept for the app session.
+    @State private var offset: CGSize = SimRingOverlay.savedOffset
+    @GestureState private var drag: CGSize = .zero
+    private static var savedOffset: CGSize = .zero
 
     var body: some View {
         let sim = services.simulator
@@ -227,6 +243,16 @@ struct SimRingOverlay: View {
                     .background(Color(hex: "#08060C"), in: Capsule())
             }
         }
+        .offset(x: offset.width + drag.width, y: offset.height + drag.height)
+        .gesture(
+            DragGesture(minimumDistance: 8)
+                .updating($drag) { value, state, _ in state = value.translation }
+                .onEnded { value in
+                    offset.width += value.translation.width
+                    offset.height += value.translation.height
+                    SimRingOverlay.savedOffset = offset
+                }
+        )
     }
 
     private func overlayButton(_ title: String, color: Color = EColor.text, action: @escaping () -> Void) -> some View {

@@ -245,7 +245,7 @@ struct MeditationSessionView: View {
 
     private var summary: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("\(kind == .journey ? "FULL JOURNEY" : kind.title.uppercased()) · \(max(1, elapsed / 60)) MIN").font(EFont.label).tracking(1.2).foregroundStyle(Color(hex: "#7FB2F0")).padding(.top, 30)
+            Text("\(kind == .journey ? "FULL JOURNEY" : kind.title.uppercased()) · \(elapsed < 60 ? "\(elapsed) SEC" : "\(elapsed / 60) MIN")").font(EFont.label).tracking(1.2).foregroundStyle(Color(hex: "#7FB2F0")).padding(.top, 30)
             Text("Nicely done").font(EFont.display(32)).padding(.bottom, 8)
             if !coherence.isEmpty {
                 VStack(alignment: .leading, spacing: 12) {

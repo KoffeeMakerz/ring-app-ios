@@ -55,9 +55,14 @@ struct HomeView: View {
                     HStack(spacing: 14) {
                         Image(systemName: "alarm").foregroundStyle(feeling.color).frame(width: 44, height: 44).background(EColor.cardRaised, in: Circle())
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(nextEvent.map { "Next ring cue around \($0.scheduledAt.formatted(date: .omitted, time: .shortened))" } ?? "No reminders yet")
+                            Text(nextEvent.map { e in
+                                let time = e.scheduledAt.formatted(date: .omitted, time: .shortened)
+                                return Calendar.current.isDateInToday(e.scheduledAt) ? "Next ring cue around \(time)" : "Next ring cue tomorrow, \(time)"
+                            } ?? "No reminders yet")
                                 .font(EFont.body(15, .semibold))
-                            Text(nextEvent != nil ? "\(feeling.name) · \(todayCount.done) of \(todayCount.total) today" : "Set reminders to keep the feeling alive")
+                            Text(nextEvent == nil ? "Set reminders to keep the feeling alive"
+                                 : todayCount.total == 0 ? "\(feeling.name) · none left today"
+                                 : "\(feeling.name) · \(todayCount.done) of \(todayCount.total) today")
                                 .font(EFont.body(13)).foregroundStyle(EColor.textSecondary)
                         }
                         Spacer()

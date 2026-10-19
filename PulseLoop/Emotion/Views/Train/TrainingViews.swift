@@ -264,7 +264,7 @@ struct TrainingSessionView: View {
 
     private func feelView(_ p: ExperiencePlayback) -> some View {
         ZStack(alignment: .bottom) {
-            SlideshowView(experience: experience, index: p.slideIndex, fallback: feeling)
+            SlideshowView(experience: experience, index: p.slideIndex, fallback: feeling, showLabel: false)
                 .ignoresSafeArea()
             VStack(alignment: .leading, spacing: 0) {
                 HStack {
