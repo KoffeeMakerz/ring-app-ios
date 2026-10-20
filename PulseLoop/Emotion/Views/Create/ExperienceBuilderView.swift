@@ -408,7 +408,7 @@ struct ImagesPickerView: View {
     }
 
     private var previewExperience: Experience {
-        let e = Experience(feeling: feeling)
+        let e = Experience(feelings: [feeling])
         e.imageRefs = refs
         return e
     }
