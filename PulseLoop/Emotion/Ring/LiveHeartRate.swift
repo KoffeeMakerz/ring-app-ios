@@ -119,6 +119,12 @@ final class LiveHeartRate {
         timed.removeAll { now.timeIntervalSince($0.t) > 120 }
     }
 
+    /// Timed samples from the last `seconds` (up to 120 s), for the heart rhythm chart.
+    func recent(seconds: Double) -> [(t: Date, bpm: Int)] {
+        let now = Date()
+        return timed.filter { now.timeIntervalSince($0.t) <= seconds }
+    }
+
     /// Seconds of usable heart data in the coherence window, for "measuring…" progress.
     var secondsOfData: Int {
         guard let first = timed.first?.t, let last = timed.last?.t else { return 0 }

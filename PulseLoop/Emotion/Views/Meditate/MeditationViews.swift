@@ -50,7 +50,7 @@ struct MeditateSelectView: View {
                         Divider().overlay(EColor.line)
                         ToggleRow(title: "Ring guides my breath", subtitle: "A buzz at each inhale, so eyes can close", isOn: $profile.ringGuidesBreath)
                         Divider().overlay(EColor.line)
-                        ToggleRow(title: "Live heart feedback", subtitle: "Optional · uses ring heart rate", isOn: $profile.liveHeartFeedback)
+                        ToggleRow(title: "Heart rhythm chart", subtitle: "Optional · HRV and coherence from the ring's heart rate", isOn: $profile.liveHeartFeedback)
                     }
                     .padding(.horizontal, 16).eCard()
                     .onChange(of: profile.ringGuidesBreath) { try? context.save() }
@@ -114,7 +114,9 @@ struct MeditationSessionView: View {
     @State private var running = true
     @State private var inhale = true
     @State private var phaseSecondsLeft = 0.0
-    @State private var showHeart = true
+    @AppStorage("emotion.showHeartChart") private var showHeart = true
+    /// When each in-breath started, to draw the breath bands on the heart chart.
+    @State private var inhaleStarts: [Date] = []
     @State private var coherence: [CoherenceLevel: Int] = [:]
     @State private var hrStart: Int?
     @State private var finished = false
@@ -165,24 +167,31 @@ struct MeditationSessionView: View {
             PhaseStrip(kind: kind, activeIndex: phaseIndex, activeFraction: phaseFraction).padding(.top, 8)
             Text("PHASE \(phaseIndex + 1) · \(phaseName.uppercased())").font(EFont.label).tracking(1.2).foregroundStyle(Color(hex: "#7FB2F0")).padding(.top, 10)
             Spacer()
+            // Near-white so it stays clear over any background image.
             ZStack {
-                Circle().stroke(Color(hex: "#22324D")).frame(width: 240, height: 240)
-                Circle().fill(Color(hex: "#1B3355").opacity(0.6)).frame(width: 190, height: 190)
-                    .overlay(Circle().stroke(.white.opacity(0.18), lineWidth: 1))
+                Circle().stroke(.white.opacity(0.55), lineWidth: 1.5).frame(width: 240, height: 240)
+                Circle().fill(Color(hex: "#EEF4FF").opacity(0.9)).frame(width: 190, height: 190)
+                    .shadow(color: .white.opacity(0.45), radius: 18)
                     .scaleEffect(isBreathingPhase ? (inhale ? 1.12 : 0.78) : 1)
                     .animation(.easeInOut(duration: inhale ? inS : outS), value: inhale)
                 VStack(spacing: 4) {
-                    Text(isBreathingPhase ? (inhale ? "Breathe in" : "Breathe out") : (phaseName == "Reflect" ? "Reflect" : "Let go")).font(EFont.display(28))
-                    Text(isBreathingPhase ? "\(Int(phaseSecondsLeft.rounded(.up)))" : (phaseName == "Reflect" ? "What do you feel now?" : "Soften from head to toe")).font(EFont.body(15)).foregroundStyle(EColor.textSecondary)
+                    Text(isBreathingPhase ? (inhale ? "Breathe in" : "Breathe out") : (phaseName == "Reflect" ? "Reflect" : "Let go")).font(EFont.display(26))
+                    Text(isBreathingPhase ? "\(Int(phaseSecondsLeft.rounded(.up)))" : (phaseName == "Reflect" ? "What do you feel now?" : "Soften from head to toe")).font(EFont.body(15, .semibold))
                 }
+                .foregroundStyle(EColor.calmGround)
+                .multilineTextAlignment(.center)
+                .frame(width: 160)
             }
             .frame(height: 300)
             Spacer()
             if showHeart { heartPanel }
             Spacer(minLength: 16)
             HStack(spacing: 28) {
-                Button { showHeart.toggle() } label: { Image(systemName: showHeart ? "eye.slash" : "eye").frame(width: 52, height: 52).background(EColor.calmCard, in: Circle()) }
-                    .accessibilityLabel(showHeart ? "Hide heart feedback" : "Show heart feedback")
+                Button { showHeart.toggle() } label: {
+                    Image(systemName: showHeart ? "waveform.path.ecg" : "eye.slash").frame(width: 52, height: 52)
+                        .background(showHeart ? Color(hex: "#7FB2F0").opacity(0.3) : EColor.calmCard, in: Circle())
+                }
+                .accessibilityLabel(showHeart ? "Hide heart rhythm chart" : "Show heart rhythm chart")
                 Button { running.toggle() } label: {
                     Image(systemName: running ? "pause.fill" : "play.fill").font(.system(size: 26)).foregroundStyle(EColor.calmGround)
                         .frame(width: 72, height: 72).background(Color(hex: "#7FB2F0"), in: Circle())
@@ -202,8 +211,7 @@ struct MeditationSessionView: View {
     @ViewBuilder
     private var heartPanel: some View {
         let heartOn = profile?.liveHeartFeedback ?? true
-        switch heartOn ? services.heart.status : .idle {
-        case .idle:
+        if !heartOn {
             heartNotice(icon: "heart.slash", title: "Live heart feedback is off",
                         text: "Turn it on to see your heart rhythm and coherence from the ring.",
                         action: "Turn on") {
@@ -211,19 +219,7 @@ struct MeditationSessionView: View {
                 try? context.save()
                 services.heart.start()
             }
-        case .noRing:
-            heartNotice(icon: "circle.dashed", title: "No ring connected",
-                        text: "Connect your ring to see heart rate and coherence. The breathing guide works without it.",
-                        action: "Connect ring") { showPairing = true }
-        case .starting:
-            heartNotice(icon: "waveform.path.ecg", title: "Starting heart rate…",
-                        text: "Keep your hand still. The ring usually needs 10–20 seconds for the first reading.",
-                        action: nil, onAction: {})
-        case .stalled where services.heart.samples.isEmpty:
-            heartNotice(icon: "exclamationmark.circle", title: "No pulse from the ring yet",
-                        text: "Make sure the ring is snug with the sensor against your palm side, and keep your hand still.",
-                        action: nil, onAction: {})
-        case .live, .stalled:
+        } else {
             liveHeartPanel
         }
     }
@@ -246,34 +242,56 @@ struct MeditationSessionView: View {
         .padding(16).frame(maxWidth: .infinity, alignment: .leading).eCard(EColor.calmCard, radius: 22)
     }
 
+    /// Heart rhythm (HRV) chart: heart rate over the last minute with the in-breaths shaded, plus
+    /// the coherence estimate during paced breathing. Shows its status inline when there's no pulse.
     private var liveHeartPanel: some View {
         let level = services.heart.coherence(breathPeriodS: inS + outS)
-        let samples = services.heart.samples.suffix(40)
-        let stalled = services.heart.status == .stalled
+        let status = services.heart.status
+        let stalled = status == .stalled
+        let points = services.heart.recent(seconds: 60)
+        let message: String? = {
+            switch status {
+            case .noRing: return "Connect your ring to see your heart rhythm. The breathing guide works without it."
+            case .starting: return "Starting… keep your hand still. The first reading takes 10–20 seconds."
+            case .stalled where points.isEmpty: return "No pulse from the ring yet. Make sure it's snug, sensor on the palm side."
+            case .idle: return "Starting…"
+            default: return points.count < 2 ? "Waiting for heart readings…" : nil
+            }
+        }()
         return VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Text("Heart rhythm").font(EFont.body(15, .bold))
+                Text("Heart rhythm · HRV").font(EFont.body(15, .bold))
                 Spacer()
-                Text(stalled ? "Signal lost · hold still" : services.heart.current.map { "\($0) bpm" } ?? "")
+                Text(stalled && !points.isEmpty ? "Signal lost · hold still" : services.heart.current.map { "\($0) bpm" } ?? "")
                     .font(EFont.body(12)).foregroundStyle(stalled ? EColor.accent : EColor.textSecondary)
             }
-            Sparkline(values: samples.map(Double.init)).stroke(Color(hex: "#7FB2F0"), style: StrokeStyle(lineWidth: 2.5, lineJoin: .round))
-                .frame(height: 64)
-                .accessibilityLabel("Heart rate trace")
-            HStack(spacing: 6) {
-                ForEach([CoherenceLevel.low, .medium, .high], id: \.rawValue) { l in
-                    Capsule().fill(level == l ? (l == .high ? EColor.accent : l == .medium ? Color(hex: "#7FB2F0") : Color(hex: "#3A4560")) : Color(hex: "#22324D")).frame(height: 8)
+            ZStack {
+                HeartRhythmChart(points: points, inhaleStarts: inhaleStarts, inhaleSeconds: inS, window: 60)
+                if let message {
+                    Text(message).font(EFont.body(13)).foregroundStyle(EColor.textSecondary)
+                        .multilineTextAlignment(.center).padding(.horizontal, 12)
                 }
             }
-            HStack {
-                Text("Low"); Spacer()
-                Text(level.map { "\($0.name) coherence" } ?? (isBreathingPhase ? "Measuring… \(min(100, services.heart.secondsOfData * 5))%" : "Shown during paced breathing")).fontWeight(.bold).foregroundStyle(EColor.text)
-                Spacer(); Text("High")
+            .frame(height: 84)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(message ?? "Heart rate trace over the last minute, in-breaths shaded")
+            if isBreathingPhase {
+                HStack(spacing: 6) {
+                    ForEach([CoherenceLevel.low, .medium, .high], id: \.rawValue) { l in
+                        Capsule().fill(level == l ? (l == .high ? EColor.accent : l == .medium ? Color(hex: "#7FB2F0") : Color(hex: "#3A4560")) : Color(hex: "#22324D")).frame(height: 8)
+                    }
+                }
+                HStack {
+                    Text("Low"); Spacer()
+                    Text(level.map { "\($0.name) coherence" } ?? "Measuring… \(min(100, services.heart.secondsOfData * 5))%").fontWeight(.bold).foregroundStyle(EColor.text)
+                    Spacer(); Text("High")
+                }
+                .font(EFont.body(12)).foregroundStyle(EColor.textSecondary)
             }
-            .font(EFont.body(12)).foregroundStyle(EColor.textSecondary)
-            Text("An estimate from your ring's pulse. Not a medical reading.").font(EFont.body(12)).foregroundStyle(EColor.textMuted)
+            Text("Heart rate rising on the in-breath and falling on the out-breath is coherence. An estimate from your ring's pulse, not a medical reading.")
+                .font(EFont.body(11)).foregroundStyle(EColor.textMuted).fixedSize(horizontal: false, vertical: true)
         }
-        .padding(16).eCard(EColor.calmCard, radius: 22)
+        .padding(16).eCard(EColor.calmCard.opacity(0.92), radius: 22)
     }
 
     private func runClock() async {
@@ -287,6 +305,10 @@ struct MeditationSessionView: View {
             let nowInhale = pos < inS
             if nowInhale != inhale {
                 inhale = nowInhale
+                if inhale {
+                    inhaleStarts.append(Date())
+                    inhaleStarts.removeAll { Date().timeIntervalSince($0) > 90 }
+                }
                 if inhale, isBreathingPhase, profile?.ringGuidesBreath ?? true { services.haptics.playSingle() }
             }
             phaseSecondsLeft = nowInhale ? inS - pos : cycle - pos
@@ -493,5 +515,48 @@ struct CalmBackdrop: View {
         }
         .ignoresSafeArea()
         .accessibilityHidden(true)
+    }
+}
+
+/// Heart rate over the last `window` seconds (newest on the right), with each in-breath shaded.
+struct HeartRhythmChart: View {
+    let points: [(t: Date, bpm: Int)]
+    let inhaleStarts: [Date]
+    let inhaleSeconds: Double
+    let window: Double
+
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: 1)) { timeline in
+            Canvas { ctx, size in
+                let now = timeline.date
+                func x(_ t: Date) -> CGFloat { size.width * CGFloat(1 - now.timeIntervalSince(t) / window) }
+                // In-breath bands.
+                for start in inhaleStarts {
+                    let x0 = max(0, x(start)), x1 = min(size.width, x(start.addingTimeInterval(inhaleSeconds)))
+                    guard x1 > x0 else { continue }
+                    ctx.fill(Path(CGRect(x: x0, y: 0, width: x1 - x0, height: size.height)), with: .color(Color(hex: "#7FB2F0").opacity(0.14)))
+                }
+                // Baseline grid.
+                for f in [0.25, 0.5, 0.75] {
+                    var g = Path(); g.move(to: CGPoint(x: 0, y: size.height * f)); g.addLine(to: CGPoint(x: size.width, y: size.height * f))
+                    ctx.stroke(g, with: .color(.white.opacity(0.06)), lineWidth: 1)
+                }
+                guard points.count > 1 else { return }
+                let values = points.map { Double($0.bpm) }
+                let lo = values.min()!, hi = values.max()!
+                let mid = (lo + hi) / 2, span = max(8, hi - lo) * 1.25
+                func y(_ v: Double) -> CGFloat { size.height * CGFloat(0.5 - (v - mid) / span) }
+                var line = Path()
+                for (i, p) in points.enumerated() {
+                    let pt = CGPoint(x: x(p.t), y: y(Double(p.bpm)))
+                    i == 0 ? line.move(to: pt) : line.addLine(to: pt)
+                }
+                ctx.stroke(line, with: .color(Color(hex: "#EEF4FF")), style: StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round))
+                if let last = points.last {
+                    let c = CGPoint(x: x(last.t), y: y(Double(last.bpm)))
+                    ctx.fill(Path(ellipseIn: CGRect(x: c.x - 4, y: c.y - 4, width: 8, height: 8)), with: .color(Color(hex: "#F2B45A")))
+                }
+            }
+        }
     }
 }
