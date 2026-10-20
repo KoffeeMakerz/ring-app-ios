@@ -39,6 +39,7 @@ struct RingSettingsView: View {
 
                 if let p = profiles.first {
                     @Bindable var profile = p
+                    RingStatsSection(profile: p).padding(.top, 6)
                     SectionLabel("Optional stats").padding(.top, 6)
                     VStack(spacing: 0) {
                         ToggleRow(title: "Heart rate & HRV", isOn: $profile.statsHeart)

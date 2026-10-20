@@ -8,6 +8,7 @@ struct HomeView: View {
     @Environment(EmotionRouter.self) private var router
     @Query(sort: \Experience.createdAt, order: .reverse) private var experiences: [Experience]
     @Query(sort: \ReminderEvent.scheduledAt) private var events: [ReminderEvent]
+    @Query private var profiles: [EmotionProfile]
 
     /// The vision most recently lived (or made).
     private var today: Experience? {
@@ -56,6 +57,10 @@ struct HomeView: View {
                     .padding(.horizontal, 16).padding(.vertical, 12).eCard()
                 }
                 .buttonStyle(.plain)
+
+                if let profile = profiles.first {
+                    HomeStatsStrip(profile: profile) { router.tab = .ring }
+                }
 
                 if today != nil {
                     HStack {
