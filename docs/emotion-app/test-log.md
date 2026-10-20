@@ -132,7 +132,7 @@ Commits `2a6eb43` (iOS) and `5820a31` (Android).
 
 **Android version.** Android has the same rules. It checks when ring data is saved, when the app opens, and in the 30-min background ring sync. A Meditate tab offers full journey, deep relax, coherence and calm breath, with the calm images; live heart coherence isn't ported yet. Calm cue lives under Ring tab → Calm cue when tense. The notification opens the calm breath.
 
-**What it does.** The app checks on every wake: ring data, app open, notification, or background refresh, at most once a minute. When the rules below hold, the ring plays the **Slow down** touch: three soft hums with lengthening gaps, `[800, 1200, 800, 1800, 800]` ms. A notification also says "Feeling tense? … breathe in for 4, out for 7". Tapping it opens **Calm breath**: a 99 s session at 4 in / 7 out, with the ring tapping each in-breath and calm images behind it.
+**What it does.** The app checks on every wake: ring data, app open, notification, or background refresh, at most once a minute. When the rules below hold, the ring plays the **Slow down** touch: five hums with each gap longer, `[600, 700, 600, 1000, 600, 1400, 600, 1800, 600]` ms (v2, see touch-patterns.md). A notification also says "Feeling tense? … breathe in for 4, out for 7". Tapping it opens **Calm breath**: a 99 s session at 4 in / 7 out, with the ring tapping each in-breath and calm images behind it.
 
 **Rules (all must hold):**
 
@@ -167,3 +167,24 @@ Commits `2a6eb43` (iOS) and `5820a31` (Android).
 - The ring stress score only exists on some rings, such as Colmi. Others rely on heart rate and HRV.
 - Steps update only when the ring syncs. Until there are two step snapshots 15 min apart, it logs "can't tell if still".
 - On iPhone it reacts when new ring data wakes the app, so a cue can come a little after the moment.
+
+## Ring touch patterns v2 — 2026-10-20 (iOS + Android)
+
+Commits `45deb80` (iOS) and `c33704b` (Android).
+
+v1 touches were barely noticeable on a real ring. Fixed-buzz rings turn every motor-on segment into one short "find device" buzz, so v1 played only 2–3 buzzes. Each touch is now 5–9 buzzes in countable groups:
+- gratitude 2·2·1
+- love three heartbeats
+- joy three triplets
+- confidence 1·1·3
+- bliss five taps speeding up
+- calm four slow hums
+- calm cue five hums slowing down
+
+The full table, durations and design rules are in `docs/emotion-app/touch-patterns.md` (also in the project as `claude/touch-patterns.md`).
+
+**To test:** play each touch on the real ring and note which are easy to feel and to tell apart.
+
+| Date | Ring | Easy to feel | Hard to tell apart | Notes |
+|---|---|---|---|---|
+| | | | | |
