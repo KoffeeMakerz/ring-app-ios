@@ -68,7 +68,24 @@ struct RingStatsSection: View {
     @Environment(EmotionServices.self) private var services
     @State private var snap = RingStatsSnapshot()
     @State private var syncing = false
+    @State private var measuring: String?
     @State private var dataChange = PulseDataChange.shared
+
+    private var coordinator: RingSyncCoordinator { services.coordinator }
+    private var realRingConnected: Bool { services.client.state == .connected }
+    private var caps: Set<WearableCapability> { services.client.activeCapabilities }
+    private func isStale(_ d: Date?) -> Bool { d.map { Date().timeIntervalSince($0) > 2 * 3600 } ?? true }
+
+    /// "Colmi R02 · connected · last synced 2 min ago"
+    private var statusLine: String {
+        if services.haptics.usesSimulator { return "Simulated ring on — stats come only from a real ring" }
+        let name = services.client.activeWearableModel?.displayName ?? "Ring"
+        guard realRingConnected else { return "\(name) · not connected" }
+        if coordinator.isSyncing || syncing { return "\(name) · syncing… \(coordinator.syncStage ?? "")" }
+        if let err = coordinator.syncError { return "\(name) · last sync failed: \(err)" }
+        if let at = coordinator.lastSyncAt { return "\(name) · last synced \(at.formatted(.relative(presentation: .named)))" }
+        return "\(name) · connected, not synced yet"
+    }
 
     private var anyOn: Bool { profile.statsHeart || profile.statsSleep || profile.statsActivity }
 
@@ -88,6 +105,7 @@ struct RingStatsSection: View {
                     }
                     .buttonStyle(TextLinkButtonStyle()).disabled(syncing)
                 }
+                Text(statusLine).font(EFont.body(12)).foregroundStyle(coordinator.syncError != nil ? EColor.warning : EColor.textSecondary)
                 if snap.isEmpty {
                     InfoNote(icon: "arrow.triangle.2.circlepath", text: services.haptics.usesSimulator
                              ? "Stats come from a real ring. Turn off the simulated ring and connect yours."
@@ -100,20 +118,49 @@ struct RingStatsSection: View {
                     }
                     if profile.statsHeart {
                         StatCard(title: "Heart rate", value: snap.hrLatest.map { "\($0.value)" } ?? "—", unit: "bpm",
-                                 note: snap.hrRestingToday.map { "lowest today \($0)" } ?? ago(snap.hrLatest?.at),
-                                 days: snap.hr7, color: Color(hex: "#F27A9B"))
+                                 note: ago(snap.hrLatest?.at).map { "updated \($0)" } ?? "no reading yet",
+                                 days: snap.hr7, color: Color(hex: "#F27A9B"), stale: snap.hrLatest != nil && isStale(snap.hrLatest?.at))
                         StatCard(title: "HRV", value: snap.hrvLatest.map { "\($0.value)" } ?? "—", unit: "ms",
-                                 note: ago(snap.hrvLatest?.at) ?? "no reading yet", days: snap.hrv7, color: Color(hex: "#7FB2F0"))
+                                 note: ago(snap.hrvLatest?.at).map { "updated \($0)" } ?? "no reading yet",
+                                 days: snap.hrv7, color: Color(hex: "#7FB2F0"), stale: snap.hrvLatest != nil && isStale(snap.hrvLatest?.at))
                     }
                     if profile.statsSleep {
                         StatCard(title: "Sleep", value: snap.sleepLast.map { "\($0.minutes / 60)h \($0.minutes % 60)m" } ?? "—", unit: "",
                                  note: snap.sleepLast?.score.map { "score \($0)" } ?? "last night", days: snap.sleep7, color: Color(hex: "#B892FF"))
                     }
                 }
+                if profile.statsHeart, realRingConnected, !services.haptics.usesSimulator {
+                    HStack(spacing: 8) {
+                        if caps.contains(.manualHeartRate) {
+                            measureButton("Measure heart rate", key: "hr") { _ = await coordinator.measureHR() }
+                        }
+                        if caps.contains(.manualHrv) {
+                            measureButton("Measure HRV", key: "hrv") { _ = await coordinator.measureHRV() }
+                        }
+                    }
+                    if isStale(snap.hrLatest?.at) {
+                        Text("Your ring normally measures heart rate every few minutes in the background. If the last reading stays hours old after a sync, the ring may not be recording — measure once now and tell us which ring you have.")
+                            .font(EFont.body(12)).foregroundStyle(EColor.textMuted)
+                    }
+                }
             }
             .onAppear { snap = .load(context) }
             .onChange(of: dataChange.token) { _, _ in snap = .load(context) }
         }
+    }
+
+    private func measureButton(_ title: String, key: String, run: @escaping () async -> Void) -> some View {
+        Button(measuring == key ? "Measuring… keep still" : title) {
+            measuring = key
+            Task {
+                await run()
+                try? await Task.sleep(for: .seconds(1))
+                snap = .load(context)
+                measuring = nil
+            }
+        }
+        .buttonStyle(SecondaryButtonStyle(height: 42))
+        .disabled(measuring != nil)
     }
 
     private func ago(_ date: Date?) -> String? {
@@ -130,6 +177,7 @@ struct StatCard: View {
     let note: String?
     let days: [RingStatsSnapshot.Day]
     let color: Color
+    var stale = false
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(title).font(EFont.body(12)).foregroundStyle(EColor.textSecondary)
@@ -137,7 +185,9 @@ struct StatCard: View {
                 Text(value).font(EFont.display(24))
                 if !unit.isEmpty { Text(unit).font(EFont.body(12)).foregroundStyle(EColor.textSecondary) }
             }
-            if let note { Text(note).font(EFont.body(11)).foregroundStyle(EColor.textMuted).lineLimit(1) }
+            if let note {
+                Text(note).font(EFont.body(11)).foregroundStyle(stale ? EColor.warning : EColor.textMuted).lineLimit(1)
+            }
             let top = max(days.map(\.value).max() ?? 0, 1)
             HStack(alignment: .bottom, spacing: 4) {
                 ForEach(days) { d in
