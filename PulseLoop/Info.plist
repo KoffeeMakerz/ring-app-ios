@@ -6,6 +6,7 @@
 	<array>
 		<string>com.pulseloop.coach.refresh</string>
 		<string>com.pulseloop.coach.process</string>
+		<string>emotion.reminders.refresh</string>
 	</array>
 	<key>NSAppTransportSecurity</key>
 	<dict>

@@ -89,7 +89,8 @@ struct PulseLoopApp: App {
         _coordinator = State(initialValue: coordinator)
         _gpsRecorder = State(initialValue: gps)
         _liveWorkout = State(initialValue: LiveWorkoutManager(coordinator: coordinator, gps: gps, context: container.mainContext))
-        _emotion = State(initialValue: EmotionServices(client: client, coordinator: coordinator))
+        let emotionServices = EmotionServices(client: client, coordinator: coordinator)
+        _emotion = State(initialValue: emotionServices)
 
         let subscriber = EventPersistenceSubscriber(context: container.mainContext)
         self.persistence = subscriber
@@ -132,6 +133,8 @@ struct PulseLoopApp: App {
         healthSyncPublisher.start()
         stravaSyncPublisher.start()
         notificationDataTrigger.start()
+        // Reminder cues: phone-sent ring touches, delivered whenever iOS lets the app run.
+        emotionServices.startReminderDelivery(context: container.mainContext)
 
         // Daily check-in notifications: route taps + register the background wake.
         UNUserNotificationCenter.current().delegate = notificationDelegate

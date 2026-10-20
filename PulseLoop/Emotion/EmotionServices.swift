@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import SwiftData
 
 /// App-lifetime services for the emotion app, injected into the SwiftUI environment.
 @MainActor
@@ -10,6 +11,7 @@ final class EmotionServices {
     let simulator: SimulatedRing
     let haptics: RingHapticsService
     let heart: LiveHeartRate
+    private(set) var dispatcher: CueDispatcher?
 
     init(client: RingBLEClient, coordinator: RingSyncCoordinator) {
         self.client = client
@@ -34,6 +36,20 @@ final class EmotionServices {
 
     func playback(feeling: Feeling, track: MusicTrack) -> ExperiencePlayback {
         ExperiencePlayback(track: track, feelings: [feeling], haptics: haptics)
+    }
+
+    /// Start sending reminder cues to the ring and register the background refresh.
+    /// Call from the app's init (BGTaskScheduler registration must happen before launch ends).
+    func startReminderDelivery(context: ModelContext) {
+        guard dispatcher == nil else { return }
+        let d = CueDispatcher(context: context, services: self)
+        dispatcher = d
+        d.start()
+        ReminderBackgroundRefresh.register { [weak d] in
+            ReminderScheduler.rebuild(context: context)
+            d?.check(.backgroundRefresh)
+        }
+        ReminderBackgroundRefresh.schedule()
     }
 
     /// Debug builds can switch back to the original PulseLoop UI.

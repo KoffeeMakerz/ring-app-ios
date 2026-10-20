@@ -170,6 +170,12 @@ final class ReminderEvent {
     var feltRating: Int? = nil          // 0 no · 1 a little · 2 yes
     var note: String? = nil
     var experienceID: UUID? = nil
+    /// How the cue reached the ring ("ring data", "app open", …) or why it was skipped.
+    var deliveredVia: String? = nil
+    var delaySeconds: Int? = nil
+    var attempts: Int = 0
+    /// Created from the developer delivery test, not a real schedule.
+    var isTest: Bool = false
     init(ruleID: UUID?, feeling: Feeling, at date: Date, experienceID: UUID? = nil) {
         self.ruleID = ruleID
         self.feelingRaw = feeling.rawValue

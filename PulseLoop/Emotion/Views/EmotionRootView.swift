@@ -10,6 +10,7 @@ enum ERoute: Hashable {
     case learn
     case builder(UUID?)
     case newFromTemplate(String)
+    case deliveryTest
     case stressCue
     case simPanel
     case ringSettings
@@ -80,6 +81,7 @@ struct EmotionRootView: View {
     @Environment(\.modelContext) private var context
     @Environment(EmotionServices.self) private var services
     @Query private var profiles: [EmotionProfile]
+    @Environment(\.scenePhase) private var scenePhase
     @State private var router = EmotionRouter()
     @State private var notificationBridge = CueNotificationBridge()
 
@@ -97,10 +99,20 @@ struct EmotionRootView: View {
         .tint(EColor.accent)
         .task {
             _ = context.emotionProfile()
-            let router = self.router, services = self.services, context = self.context
+            let router = self.router, services = self.services
             notificationBridge.install(
                 onCue: { feeling, expID in router.cue = CueRequest(feeling: feeling, eventID: nil, experienceID: expID) },
-                onDeliver: { feeling, expID in Self.playCue(feeling, expID, services: services, context: context) })
+                onDeliver: { _, _ in services.dispatcher?.check(.notification) })
+        }
+        .onChange(of: scenePhase) { _, phase in
+            switch phase {
+            case .active:
+                ReminderScheduler.rebuild(context: context)
+                services.dispatcher?.check(.foreground)
+            case .background:
+                ReminderBackgroundRefresh.schedule()
+            default: break
+            }
         }
         .fullScreenCover(item: $router.training) { request in
             TrainingSessionView(request: request).simRingOverlay().environment(router)
@@ -116,15 +128,7 @@ struct EmotionRootView: View {
         }
     }
 
-    /// Plays a cue on the ring: the experience's whole sequence, or the feeling's touch.
-    static func playCue(_ feeling: Feeling, _ experienceID: UUID?, services: EmotionServices, context: ModelContext) {
-        if let id = experienceID,
-           let exp = try? context.fetch(FetchDescriptor<Experience>(predicate: #Predicate { $0.id == id })).first {
-            services.haptics.play(exp.touchSequence)
-        } else {
-            services.haptics.play(feeling.touch)
-        }
-    }
+
 }
 
 /// Routes taps on cue notifications into the cue-received screen.
@@ -146,7 +150,10 @@ final class CueNotificationBridge: NSObject, UNUserNotificationCenterDelegate {
         let raw = info["feeling"] as? String
         let expID = (info["experience"] as? String).flatMap(UUID.init(uuidString:))
         Task { @MainActor in
-            if let raw, let feeling = Feeling(rawValue: raw) { self.onCue?(feeling, expID) }
+            if let raw, let feeling = Feeling(rawValue: raw) {
+                self.onDeliver?(feeling, expID)
+                self.onCue?(feeling, expID)
+            }
             else { self.previous?.userNotificationCenter?(center, didReceive: response, withCompletionHandler: {}) }
             completionHandler()
         }
@@ -199,6 +206,12 @@ extension View {
             case .simPanel: SimulatorPanelView()
             case .ringSettings: RingSettingsView()
             case .pairRing: PairRingScreen(onDone: nil)
+            case .deliveryTest:
+                #if DEBUG
+                ReminderDeliveryTestView()
+                #else
+                EmptyView()
+                #endif
             }
         }
     }

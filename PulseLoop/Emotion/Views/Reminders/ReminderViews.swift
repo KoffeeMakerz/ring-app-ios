@@ -110,14 +110,7 @@ struct RemindersView: View {
             : "\(r.fixedMinutes.map(hm).joined(separator: ", ")) · \(daysLabel(r.fixedDays))"
     }
 
-    private func statusText(_ e: ReminderEvent) -> String {
-        if e.scheduledAt > Date() { return "Scheduled · \(e.feeling.name)" }
-        switch e.status {
-        case "missed": return "Missed · ring was out of range"
-        case "delivered": return e.feltRating != nil ? "Delivered · you checked in" : "Delivered"
-        default: return "Delivered · \(e.feeling.name)"
-        }
-    }
+    private func statusText(_ e: ReminderEvent) -> String { cueStatusText(e) }
 }
 
 func hm(_ m: Int) -> String { String(format: "%02d:%02d", m / 60, m % 60) }
@@ -440,5 +433,21 @@ struct DaysPicker: View {
             .padding(.horizontal, 14).frame(height: 36)
             .background(days == value ? EColor.cardRaised : .clear, in: Capsule())
             .overlay(Capsule().stroke(EColor.line))
+    }
+}
+
+
+/// "On time", "4 min late", "Missed · …" or "Waiting for the ring".
+func cueStatusText(_ e: ReminderEvent) -> String {
+    switch e.status {
+    case "delivered":
+        let late = (e.delaySeconds ?? 0) / 60
+        let timing = late < 2 ? "On time" : "\(late) min late"
+        return e.feltRating != nil ? "\(timing) · you checked in" : timing
+    case "missed":
+        return "Missed · " + (e.deliveredVia ?? "not delivered")
+    default:
+        if e.scheduledAt > Date() { return "Scheduled" }
+        return e.attempts > 0 ? "Waiting for the ring (try \(e.attempts) of \(CueDispatcher.maxAttempts))" : "Due · waiting for the app to wake"
     }
 }

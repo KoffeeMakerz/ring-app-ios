@@ -52,7 +52,7 @@ final class ReminderScheduler {
         let now = Date()
         // Drop future scheduled events; keep history.
         let future = (try? context.fetch(FetchDescriptor<ReminderEvent>(predicate: #Predicate { $0.status == "scheduled" }))) ?? []
-        for event in future where event.scheduledAt > now { context.delete(event) }
+        for event in future where event.scheduledAt > now && !event.isTest { context.delete(event) }
 
         var planned: [(ReminderRule, Date)] = []
         for offset in 0..<3 {
@@ -108,6 +108,20 @@ final class ReminderScheduler {
                 center.add(UNNotificationRequest(identifier: "emotion.cue.\(Int(date.timeIntervalSince1970))", content: content, trigger: trigger))
             }
         }
+    }
+
+    /// Developer test: one notification for a test cue (own id prefix so `rebuild` never removes it).
+    static func scheduleTestNotification(for event: ReminderEvent, experience: Experience?) {
+        let content = UNMutableNotificationContent()
+        content.title = "[Test] " + (experience?.title ?? "\(event.feeling.name) cue")
+        content.body = "Delivery test cue for \(event.scheduledAt.formatted(date: .omitted, time: .shortened))."
+        content.categoryIdentifier = notificationCategory
+        var info = ["feeling": event.feeling.rawValue]
+        if let exp = experience { info["experience"] = exp.id.uuidString }
+        content.userInfo = info
+        let comps = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute, .second], from: event.scheduledAt)
+        let trigger = UNCalendarNotificationTrigger(dateMatching: comps, repeats: false)
+        UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: "emotion.testcue.\(event.id.uuidString)", content: content, trigger: trigger))
     }
 
     static func requestPermission() {

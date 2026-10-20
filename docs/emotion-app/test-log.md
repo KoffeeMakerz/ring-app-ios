@@ -86,3 +86,42 @@ Commits: `21a8507`, `63e7528`, plus `044958a`.
 - **Real ring.** Pairing a real ring, its buzz timing, and ring-stored alarms (`RingAlarmWriter` is a stub).
 - **Phone haptics.** "Vibrate phone" mirroring only works on a physical iPhone.
 - **Android.** Not built yet.
+
+## Reminder delivery on iPhone — design, test procedure, limitations (2026-10-20)
+
+**How cues reach the ring.** The phone sends every vibration command; nothing is scheduled on the ring. A scheduled phone notification always fires on time, but it can't run app code, so the touch itself is sent by `CueDispatcher` whenever iOS lets the app run:
+
+| Trigger | When it happens |
+|---|---|
+| ring data | Bluetooth traffic from the connected ring wakes the app (bluetooth-central background mode; iOS relaunches the app for ring events via state restoration) |
+| app open | the app comes to the foreground, plus a 30 s check while it's open |
+| notification | the cue notification arrives while the app is in the foreground, or is tapped |
+| background refresh | opportunistic `BGAppRefreshTask` (`emotion.reminders.refresh`); also re-plans the next 3 days |
+
+Rules:
+- Each cue plays at most once: it's marked delivered *before* playing.
+- Cues more than 15 min late are skipped and logged as missed.
+- If several cues are due at once, only the newest plays.
+- If the ring is disconnected, the dispatcher reconnects and retries 3 times, 20 s apart.
+- The app asks iOS for a few seconds of background time to finish sending the sequence.
+- There are no keep-alive tricks.
+
+**Real-device test (debug builds only).** Use Ring tab → Developer → *Reminder delivery test (real ring)*. This screen isn't in release builds.
+1. Turn off the simulated ring and connect the real ring.
+2. Tap *Schedule test cues in 2, 5 and 10 min*, lock the phone and leave it.
+3. Note when the ring buzzes for each cue.
+4. After 15 min, open the screen. The log shows on time / N min late / missed, and what woke the app.
+5. Repeat with the app swiped away, and once with the ring out of range for a few minutes.
+6. Record the results here.
+
+**Limitations (until proven on devices).**
+- Background delivery is **not confirmed** until this test passes on a real ring.
+- How late a locked-phone cue arrives depends on how often the ring sends data. If the ring is quiet, cues may be up to 15 min late, or missed.
+- If the user force-quits the app, iOS may not relaunch it for ring events until it's opened again.
+- Background refresh timing is entirely up to iOS.
+- Android isn't covered yet. It will use a connected-device foreground service plus exact alarms when the Android app is ported.
+
+### Results
+| Date | Ring | Phone state | 2 min | 5 min | 10 min | Notes |
+|---|---|---|---|---|---|---|
+| | | | | | | |
