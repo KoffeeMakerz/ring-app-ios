@@ -13,19 +13,17 @@ struct LibraryView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 HStack {
-                    Text("Library").font(EFont.display(28))
+                    Text("Experiences").font(EFont.display(28))
                     Spacer()
-                    if segment == 1 {
-                        Button { router.push(.builder(nil)) } label: {
-                            Label("New", systemImage: "plus").font(EFont.body(14, .bold)).foregroundStyle(EColor.onAccent)
-                                .padding(.horizontal, 16).frame(height: 40).background(EColor.accent, in: Capsule())
-                        }
+                    Button { router.push(.builder(nil)) } label: {
+                        Label("New vision", systemImage: "plus").font(EFont.body(14, .bold)).foregroundStyle(EColor.onAccent)
+                            .padding(.horizontal, 16).frame(height: 40).background(EColor.accent, in: Capsule())
                     }
                 }
                 .padding(.top, 8)
-                Picker("Library", selection: $segment) { Text("Explore").tag(0); Text("Mine").tag(1) }
+                Picker("Experiences", selection: $segment) { Text("My visions").tag(0); Text("Music").tag(1) }
                     .pickerStyle(.segmented)
-                if segment == 0 { explore } else { mine }
+                if segment == 0 { mine } else { explore }
             }
             .padding(.horizontal, 20).padding(.bottom, 32)
         }
@@ -72,13 +70,14 @@ struct LibraryView: View {
 
     @ViewBuilder private var mine: some View {
         if experiences.isEmpty {
-            VStack(spacing: 14) {
-                Text("No experiences yet").font(EFont.display(20))
-                Text("Write down a vision, tie it to a feeling and pick the music. Your ring will bring it back to you.")
-                    .font(EFont.body(14)).foregroundStyle(EColor.textSecondary).multilineTextAlignment(.center)
-                Button("Create your first experience") { router.push(.builder(nil)) }.buttonStyle(PrimaryButtonStyle())
+            VStack(alignment: .leading, spacing: 10) {
+                Text("No visions yet").font(EFont.display(20))
+                Text("Write down something you'd love to live, choose the feelings it brings, and your ring will bring it back to you.")
+                    .font(EFont.body(14)).foregroundStyle(EColor.textSecondary)
+                SectionLabel("Start from").padding(.top, 6)
+                ForEach(VisionTemplate.all) { t in VisionTemplateRow(template: t, selected: false) { router.push(.newFromTemplate(t.id)) } }
             }
-            .padding(24).eCard()
+            .padding(20).eCard()
         } else {
             ForEach(experiences) { exp in
                 ExperienceCard(experience: exp)
@@ -103,7 +102,7 @@ struct ExperienceCard: View {
             HStack(spacing: 12) {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(experience.title.isEmpty ? "Untitled vision" : experience.title).font(EFont.body(16, .bold))
-                    Text("\(experience.feeling.name) · \(experience.visionPoints.count) \(experience.visionPoints.count == 1 ? "point" : "points") · \(experience.imagesLabel)").font(EFont.body(13)).foregroundStyle(EColor.textSecondary)
+                    Text("\(experience.arcLabel) · \(experience.imagesLabel)").font(EFont.body(13)).foregroundStyle(EColor.textSecondary)
                 }
                 Spacer()
                 Button { router.push(.builder(experience.id)) } label: { Image(systemName: "pencil").frame(width: 44, height: 44) }
@@ -244,10 +243,10 @@ struct ExperiencePlayerView: View {
                     }
                     .accessibilityLabel("Close")
                     Spacer()
-                    if playback?.isInCue == true {
+                    if let p = playback, p.isInCue {
                         HStack(spacing: 8) {
-                            Circle().strokeBorder(experience.feeling.color, lineWidth: 3).frame(width: 14, height: 14).shadow(color: experience.feeling.color, radius: 6)
-                            Text("\(experience.feeling.name) touch").font(EFont.body(13, .semibold))
+                            Circle().strokeBorder(p.currentFeeling.color, lineWidth: 3).frame(width: 14, height: 14).shadow(color: p.currentFeeling.color, radius: 6)
+                            Text("\(p.currentFeeling.name) touch").font(EFont.body(13, .semibold))
                         }
                         .padding(.horizontal, 12).frame(height: 34).background(EColor.ground.opacity(0.85), in: Capsule())
                     }
@@ -263,7 +262,21 @@ struct ExperiencePlayerView: View {
             if let p = playback {
                 VStack(alignment: .leading, spacing: 0) {
                     Text(experience.title).font(EFont.display(22))
-                    Text("\(p.track.title) · \(experience.feeling.name)").font(EFont.body(13)).foregroundStyle(EColor.textSecondary).padding(.top, 2)
+                    Text("\(p.track.title) · now: \(p.currentFeeling.name)").font(EFont.body(13)).foregroundStyle(EColor.textSecondary).padding(.top, 2)
+                    if p.parts.count > 1 {
+                        HStack(spacing: 4) {
+                            ForEach(p.parts) { part in
+                                GeometryReader { geo in
+                                    ZStack(alignment: .leading) {
+                                        Capsule().fill(part.feeling.color.opacity(0.25))
+                                        Capsule().fill(part.feeling.color).frame(width: geo.size.width * p.fraction(of: part))
+                                    }
+                                }
+                                .frame(height: 4)
+                            }
+                        }
+                        .padding(.top, 12).accessibilityHidden(true)
+                    }
                     ThinProgress(value: p.progress, color: EColor.text, height: 4).padding(.top, 16)
                     HStack { Text(timeString(p.position)); Spacer(); Text(timeString(p.duration)) }.font(EFont.body(12)).foregroundStyle(EColor.textMuted).padding(.top, 4)
                     HStack(spacing: 36) {
@@ -271,7 +284,7 @@ struct ExperiencePlayerView: View {
                             .accessibilityLabel("Back 15 seconds")
                         Button { p.toggle() } label: {
                             Image(systemName: p.isPlaying ? "pause.fill" : "play.fill").font(.system(size: 26)).foregroundStyle(EColor.onAccent)
-                                .frame(width: 72, height: 72).background(experience.feeling.color, in: Circle())
+                                .frame(width: 72, height: 72).background(p.currentFeeling.color, in: Circle())
                         }
                         .accessibilityLabel(p.isPlaying ? "Pause" : "Play")
                         Button { p.seek(by: 15) } label: { Image(systemName: "goforward.15").font(.system(size: 22)).frame(width: 48, height: 48) }
@@ -307,11 +320,12 @@ struct VisionSheet: View {
     @Environment(EmotionRouter.self) private var router
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            HStack(spacing: 8) {
-                Circle().fill(experience.feeling.color).frame(width: 8, height: 8)
-                Text("Feeling: \(experience.feeling.name)").font(EFont.body(13, .semibold))
+            HStack(spacing: 6) {
+                ForEach(experience.feelings) { f in
+                    HStack(spacing: 6) { Circle().fill(f.color).frame(width: 8, height: 8); Text(f.name).font(EFont.body(13, .semibold)) }
+                        .padding(.horizontal, 10).frame(height: 30).background(f.ground, in: Capsule())
+                }
             }
-            .padding(.horizontal, 12).frame(height: 30).background(experience.feeling.ground, in: Capsule())
             .padding(.top, 24)
             Text(experience.title).font(EFont.display(26))
             ForEach(experience.visionPoints.filter { !$0.isEmpty }, id: \.self) { point in
@@ -334,5 +348,36 @@ struct VisionSheet: View {
         }
         .padding(.horizontal, 24).padding(.bottom, 24)
         .foregroundStyle(EColor.text)
+    }
+}
+
+/// One starter vision with its suggested feeling arc.
+struct VisionTemplateRow: View {
+    let template: VisionTemplate
+    let selected: Bool
+    let action: () -> Void
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 14) {
+                RoundedRectangle(cornerRadius: 12).fill(template.tile).frame(width: 40, height: 40)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(template.title).font(EFont.body(15, .bold))
+                    HStack(spacing: 6) {
+                        ForEach(Array(template.feelings.enumerated()), id: \.element) { i, f in
+                            HStack(spacing: 5) {
+                                Circle().fill(f.color).frame(width: 7, height: 7)
+                                Text((i > 0 ? "→ " : "") + f.name).font(EFont.body(12)).foregroundStyle(EColor.textSecondary)
+                            }
+                        }
+                    }
+                }
+                Spacer()
+            }
+            .padding(.horizontal, 14).frame(minHeight: 64)
+            .background(EColor.cardRaised, in: RoundedRectangle(cornerRadius: 18))
+            .overlay(RoundedRectangle(cornerRadius: 18).stroke(selected ? EColor.accent : .clear, lineWidth: 1.5))
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 }

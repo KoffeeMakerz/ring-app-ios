@@ -37,13 +37,17 @@ final class EmotionProfile {
     }
 }
 
-/// An experience = a vision (title + point-form text) tied to a feeling, with music and optional images.
+/// An experience = a vision (title + point-form text) felt through an ordered arc of 1–3 feelings
+/// (e.g. joy, then gratitude), with music and optional images.
 @Model
 final class Experience {
     var id: UUID = UUID()
     var title: String = ""
     var visionPoints: [String] = []
+    /// The first feeling of the arc (kept for older data and single-feeling lookups).
     var feelingRaw: String = Feeling.gratitude.rawValue
+    /// The full ordered arc. Empty on experiences made before v2: then the arc is just `feelingRaw`.
+    var feelingsRaw: [String] = []
     var trackID: String = ""
     /// "app:<setID>" for a built-in set, or "photo:<PHAsset localIdentifier>" for device photos (never uploaded).
     var imageRefs: [String] = []
@@ -53,17 +57,35 @@ final class Experience {
     var createdAt: Date = Date()
     var lastPlayedAt: Date? = nil
 
-    init(title: String = "", points: [String] = [], feeling: Feeling = .gratitude, trackID: String? = nil) {
+    init(title: String = "", points: [String] = [], feelings: [Feeling] = [.gratitude], trackID: String? = nil) {
+        let arc = feelings.isEmpty ? [Feeling.gratitude] : feelings
         self.title = title
         self.visionPoints = points
-        self.feelingRaw = feeling.rawValue
-        self.trackID = trackID ?? MusicTrack.default(for: feeling).id
+        self.feelingRaw = arc[0].rawValue
+        self.feelingsRaw = arc.map(\.rawValue)
+        self.trackID = trackID ?? MusicTrack.default(for: arc[0]).id
     }
 
+    /// The first feeling of the arc.
     var feeling: Feeling {
         get { Feeling(rawValue: feelingRaw) ?? .gratitude }
-        set { feelingRaw = newValue.rawValue }
+        set { feelings = [newValue] }
     }
+    /// The ordered arc of 1–3 feelings.
+    var feelings: [Feeling] {
+        get {
+            let arc = feelingsRaw.compactMap(Feeling.init(rawValue:))
+            return arc.isEmpty ? [feeling] : arc
+        }
+        set {
+            let arc = Array((newValue.isEmpty ? [Feeling.gratitude] : newValue).prefix(Feeling.maxPerExperience))
+            feelingsRaw = arc.map(\.rawValue)
+            feelingRaw = arc[0].rawValue
+        }
+    }
+    /// Each feeling's own touch, in order, at least 4 s apart: what reminders for this vision play.
+    var touchSequence: TouchPattern { Feeling.sequence(feelings) }
+    var arcLabel: String { feelings.map(\.name).joined(separator: " → ") }
     var track: MusicTrack { MusicTrack.byID(trackID) ?? MusicTrack.default(for: feeling) }
     var touch: TouchPattern {
         get {
@@ -123,6 +145,10 @@ final class ReminderRule {
     var randomTimes: Bool = true
     var fixedMinutes: [Int] = []
     var weekdaysOnly: Bool = false
+    /// Days for set times, Monday-first (7 flags). Empty = every day.
+    var fixedDays: [Bool] = []
+    /// When set, cues for this rule recall this experience and play its touch sequence.
+    var experienceID: UUID? = nil
     var checkInAfter: Bool = true
     var enabled: Bool = true
     var createdAt: Date = Date()
@@ -143,10 +169,12 @@ final class ReminderEvent {
     var status: String = "scheduled"   // scheduled / delivered / missed / snoozed
     var feltRating: Int? = nil          // 0 no · 1 a little · 2 yes
     var note: String? = nil
-    init(ruleID: UUID?, feeling: Feeling, at date: Date) {
+    var experienceID: UUID? = nil
+    init(ruleID: UUID?, feeling: Feeling, at date: Date, experienceID: UUID? = nil) {
         self.ruleID = ruleID
         self.feelingRaw = feeling.rawValue
         self.scheduledAt = date
+        self.experienceID = experienceID
     }
     var feeling: Feeling { Feeling(rawValue: feelingRaw) ?? .gratitude }
 }

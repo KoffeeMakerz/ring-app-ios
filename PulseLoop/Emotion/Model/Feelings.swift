@@ -196,10 +196,55 @@ enum Feeling: String, CaseIterable, Identifiable, Codable {
         case .confidence: "Stand tall for one breath. You've got this."
         }
     }
-    /// Feelings unlock in this order (4 sessions of the previous one).
-    static let unlockOrder: [Feeling] = [.gratitude, .love, .joy, .confidence, .bliss, .calm]
-    static let sessionsToUnlockNext = 4
+    /// What to feel during this feeling's part of an experience (works with any vision).
+    var experiencePrompt: String {
+        switch self {
+        case .gratitude: "It's real. Look around and thank everyone and everything that brought you here."
+        case .love: "Feel the people you love here with you. Let the warmth fill your chest."
+        case .joy: "It's happening. Let the joy rise and spill over."
+        case .bliss: "Let your whole body light up with it."
+        case .calm: "Everything is taken care of. Breathe out and settle into it."
+        case .confidence: "You made this happen. Stand tall in it."
+        }
+    }
+
+    /// Display / practice order.
+    static let unlockOrder: [Feeling] = [.gratitude, .joy, .love, .confidence, .bliss, .calm]
     static let programmeLength = 7
+    static let maxPerExperience = 3
+    /// Minimum silence between two feelings' touches when played as a sequence.
+    static let sequenceGapMs = 4_000
+
+    /// Each feeling's own touch, in order, separated by at least `gapMs` of silence.
+    static func sequence(_ feelings: [Feeling], gapMs: Int = sequenceGapMs) -> TouchPattern {
+        guard feelings.count > 1 else { return (feelings.first ?? .gratitude).touch }
+        var segs: [Int] = []
+        for (i, f) in feelings.enumerated() {
+            if i > 0 { segs.append(gapMs) }
+            segs += f.touch.durationsMs   // each touch starts and ends with motor-on
+        }
+        return TouchPattern(id: "sequence." + feelings.map(\.rawValue).joined(separator: "+"),
+                            name: feelings.map(\.name).joined(separator: " → "), durationsMs: segs)
+    }
+}
+
+/// Starter visions offered at the end of onboarding and in "New vision".
+struct VisionTemplate: Identifiable, Hashable {
+    let id: String
+    let title: String
+    let points: [String]
+    let feelings: [Feeling]
+    let theme: MusicTheme
+    let tile: Color
+
+    static let all: [VisionTemplate] = [
+        .init(id: "home", title: "My dream home", points: ["The keys are in my hand", "Morning light fills our kitchen", "A garden where the people I love gather"], feelings: [.joy, .gratitude], theme: .gratitude, tile: Color(hex: "#4A3418")),
+        .init(id: "money", title: "Financial freedom", points: ["The money is in my account", "I give generously and easily", "I choose how I spend my days"], feelings: [.joy, .confidence, .gratitude], theme: .abundance, tile: Color(hex: "#1E3A2C")),
+        .init(id: "love", title: "A loving relationship", points: ["We laugh together every day", "I feel completely seen and safe", "We build our life side by side"], feelings: [.love, .gratitude], theme: .love, tile: Color(hex: "#3F1C28")),
+        .init(id: "business", title: "My business thriving", points: ["Clients come to me easily", "My team loves the work we do", "We grow every month"], feelings: [.confidence, .joy], theme: .business, tile: Color(hex: "#1C2B40")),
+        .init(id: "health", title: "Vibrant health", points: ["I wake up full of energy", "My body feels strong and light", "I move with ease every day"], feelings: [.calm, .gratitude], theme: .health, tile: Color(hex: "#2D2245")),
+    ]
+    var track: MusicTrack { MusicTrack.catalog.first { $0.theme == theme } ?? MusicTrack.default(for: feelings[0]) }
 }
 
 /// Music themes for the curated library.

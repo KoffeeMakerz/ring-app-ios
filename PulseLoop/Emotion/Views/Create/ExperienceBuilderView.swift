@@ -3,9 +3,14 @@ import UIKit
 import SwiftData
 import SwiftUI
 
-/// 3.4 Create experience — vision (title + points), feeling (+ its ring touch), music, images.
+/// 3.4 / 7.3 Create experience — vision (title + points), the ordered arc of feelings you'd feel
+/// if it were real (each with its own ring touch), music and images.
 struct ExperienceBuilderView: View {
     let experienceID: UUID?
+    /// Prefill from a starter vision (onboarding / "New vision").
+    var templateID: String? = nil
+    /// Onboarding passes this to continue its own flow instead of dismissing.
+    var onSaved: ((Experience, _ startNow: Bool) -> Void)? = nil
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
     @Environment(EmotionServices.self) private var services
@@ -13,15 +18,16 @@ struct ExperienceBuilderView: View {
 
     @State private var title = ""
     @State private var points: [String] = ["", "", ""]
-    @State private var feeling: Feeling = .gratitude
-    @State private var track: MusicTrack = MusicTrack.default(for: .gratitude)
+    @State private var arc: [Feeling] = [.joy, .gratitude]
+    @State private var track: MusicTrack = MusicTrack.default(for: .joy)
     @State private var imageRefs: [String] = []
-    @State private var touch: TouchPattern = Feeling.gratitude.touch
     @State private var cueAuto = true
     @State private var loaded = false
     @State private var showTrackPicker = false
     @State private var showImages = false
     @State private var preview: ExperiencePlayback?
+
+    private var accent: Color { arc.first?.color ?? EColor.accent }
 
     var body: some View {
         ScrollView {
@@ -34,11 +40,11 @@ struct ExperienceBuilderView: View {
                     .background(EColor.card, in: RoundedRectangle(cornerRadius: 14))
                     .overlay(RoundedRectangle(cornerRadius: 14).stroke(EColor.line, lineWidth: 1.5))
                     .padding(.top, 6)
-                Text("What it looks like — write each point as if it is already true").font(EFont.body(13)).foregroundStyle(EColor.textSecondary).padding(.top, 16).padding(.bottom, 6)
+                Text("What it looks like — write it as if it's already true").font(EFont.body(13)).foregroundStyle(EColor.textSecondary).padding(.top, 16).padding(.bottom, 6)
                 VStack(spacing: 8) {
                     ForEach(points.indices, id: \.self) { i in
                         HStack(spacing: 10) {
-                            Circle().fill(feeling.color).frame(width: 8, height: 8)
+                            Circle().fill(accent).frame(width: 8, height: 8)
                             TextField("Add a detail of your vision", text: $points[i]).font(EFont.body(15))
                                 .submitLabel(i == points.count - 1 ? .done : .next)
                             Button { points.remove(at: i) } label: { Image(systemName: "xmark").font(.system(size: 13, weight: .bold)).frame(width: 40, height: 40) }
@@ -53,37 +59,40 @@ struct ExperienceBuilderView: View {
                     .buttonStyle(.plain)
                 }
 
-                SectionLabel("2 · The feeling of having it").padding(.top, 28).padding(.bottom, 6)
-                Text("Your ring will use this feeling's touch to bring the vision back to you.").font(EFont.body(13)).foregroundStyle(EColor.textSecondary).padding(.bottom, 10)
-                FlowLayout(spacing: 8) {
-                    ForEach(Feeling.allCases) { f in
-                        Chip(title: f.name, dot: f.color, selected: f == feeling, selectedColor: f.color) {
-                            let followsFeeling = touch.id.hasPrefix("feeling.")
-                            feeling = f
-                            if followsFeeling { touch = f.touch }
-                            if track.theme == MusicTrack.default(for: feeling).theme || !loaded { track = MusicTrack.default(for: f) }
+                SectionLabel("2 · What you feel when it's real").padding(.top, 28).padding(.bottom, 6)
+                Text("Pick 1–3 feelings in the order they come. Each gets its own part of the song and its own ring touch.")
+                    .font(EFont.body(13)).foregroundStyle(EColor.textSecondary).padding(.bottom, 12)
+                VStack(spacing: 8) {
+                    ForEach(Array(arc.enumerated()), id: \.element) { i, f in arcRow(i, f) }
+                }
+                if arc.count < Feeling.maxPerExperience {
+                    Text(arc.isEmpty ? "Pick a feeling" : "Add a feeling").font(EFont.body(13)).foregroundStyle(EColor.textSecondary).padding(.top, 14).padding(.bottom, 8)
+                    FlowLayout(spacing: 8) {
+                        ForEach(Feeling.unlockOrder.filter { !arc.contains($0) }) { f in
+                            Chip(title: f.name, dot: f.color, selected: false, selectedColor: f.color) { setArc(arc + [f]) }
                         }
                     }
                 }
-                NavigationLink {
-                    TouchPickerView(feeling: feeling, selection: $touch)
-                } label: {
-                    HStack(spacing: 12) {
-                        TouchGlyph(pattern: touch, color: feeling.color, scale: 0.02, maxWidth: 76).frame(width: 80, alignment: .leading)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(touch.id.hasPrefix("feeling.") ? "Ring touch · suggested" : "Ring touch").font(EFont.body(12)).foregroundStyle(EColor.textSecondary)
-                            Text(touch.name).font(EFont.body(15, .bold))
-                        }
-                        Spacer()
-                        Text("Change").font(EFont.body(14, .semibold)).foregroundStyle(EColor.accent)
-                    }
-                    .padding(.horizontal, 14).frame(minHeight: 60).eCard(radius: 16)
-                }
-                .buttonStyle(.plain).padding(.top, 12)
+                sequenceCard.padding(.top, 14)
 
                 SectionLabel("3 · Music & images").padding(.top, 28).padding(.bottom, 10)
                 VStack(spacing: 8) {
-                    row(title: "Music", value: "\(track.title) · \(track.durationLabel)", leading: AnyView(RoundedRectangle(cornerRadius: 10).fill(track.theme.art).frame(width: 40, height: 40))) { showTrackPicker = true }
+                    Button { showTrackPicker = true } label: {
+                        VStack(alignment: .leading, spacing: 12) {
+                            HStack(spacing: 12) {
+                                RoundedRectangle(cornerRadius: 10).fill(track.theme.art).frame(width: 40, height: 40)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Music").font(EFont.body(12)).foregroundStyle(EColor.textSecondary)
+                                    Text("\(track.title) · \(track.durationLabel)").font(EFont.body(15, .bold))
+                                }
+                                Spacer()
+                                Text("Change").font(EFont.body(14, .semibold)).foregroundStyle(EColor.accent)
+                            }
+                            if !arc.isEmpty { SongPartsBar(feelings: arc, durationS: track.durationS) }
+                        }
+                        .padding(14).eCard(radius: 16)
+                    }
+                    .buttonStyle(.plain)
                     row(title: "Images (optional)", value: imagesLabel, leading: nil) { showImages = true }
                     HStack(spacing: 12) {
                         VStack(alignment: .leading, spacing: 2) {
@@ -97,14 +106,15 @@ struct ExperienceBuilderView: View {
                     .padding(.horizontal, 14).frame(minHeight: 60).eCard(radius: 16)
                 }
 
-                Button("Save and start training") {
+                Button("Save and live it") {
                     let exp = save()
-                    dismiss()
-                    router.training = TrainingRequest(feeling: exp.feeling, experienceID: exp.id)
+                    finish(exp, startNow: true)
                 }
                 .buttonStyle(PrimaryButtonStyle()).padding(.top, 28)
-                Button("Save for later") { _ = save(); dismiss() }
+                .disabled(arc.isEmpty)
+                Button("Save for later") { finish(save(), startNow: false) }
                     .buttonStyle(TextLinkButtonStyle()).frame(maxWidth: .infinity)
+                    .disabled(arc.isEmpty)
             }
             .padding(.horizontal, 20).padding(.bottom, 32)
         }
@@ -113,7 +123,7 @@ struct ExperienceBuilderView: View {
         .navigationTitle(experienceID == nil ? "New experience" : "Edit experience")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: .confirmationAction) { Button("Save") { _ = save(); dismiss() }.fontWeight(.bold) }
+            ToolbarItem(placement: .confirmationAction) { Button("Save") { finish(save(), startNow: false) }.fontWeight(.bold).disabled(arc.isEmpty) }
             ToolbarItemGroup(placement: .keyboard) {
                 Spacer()
                 Button("Done") { UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil) }
@@ -122,8 +132,71 @@ struct ExperienceBuilderView: View {
         .toolbar(.hidden, for: .tabBar)
         .onAppear(perform: load)
         .onDisappear { preview?.stop() }
+        .onChange(of: track) { _, _ in preview?.stop(); preview = nil }
         .sheet(isPresented: $showTrackPicker) { TrackPickerSheet(selected: $track) }
-        .sheet(isPresented: $showImages) { ImagesPickerView(refs: $imageRefs, feeling: feeling) }
+        .sheet(isPresented: $showImages) { ImagesPickerView(refs: $imageRefs, feeling: arc.first ?? .gratitude) }
+    }
+
+    // MARK: Arc
+
+    private func setArc(_ next: [Feeling]) {
+        let wasDefaultTrack = arc.first.map { MusicTrack.default(for: $0) == track } ?? true
+        arc = Array(next.prefix(Feeling.maxPerExperience))
+        if wasDefaultTrack, let first = arc.first { track = MusicTrack.default(for: first) }
+        preview?.stop(); preview = nil
+    }
+
+    private func arcRow(_ i: Int, _ f: Feeling) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 10) {
+                Text("\(i + 1)").font(EFont.body(13, .bold)).foregroundStyle(EColor.ground)
+                    .frame(width: 26, height: 26).background(f.color, in: Circle())
+                Text(f.name).font(EFont.body(16, .bold))
+                Spacer()
+                Button { var n = arc; n.swapAt(i, i - 1); setArc(n) } label: { Image(systemName: "chevron.up").frame(width: 40, height: 40) }
+                    .disabled(i == 0).opacity(i == 0 ? 0.3 : 1).accessibilityLabel("Move \(f.name) earlier")
+                Button { var n = arc; n.swapAt(i, i + 1); setArc(n) } label: { Image(systemName: "chevron.down").frame(width: 40, height: 40) }
+                    .disabled(i == arc.count - 1).opacity(i == arc.count - 1 ? 0.3 : 1).accessibilityLabel("Move \(f.name) later")
+                Button { setArc(arc.filter { $0 != f }) } label: { Image(systemName: "xmark").font(.system(size: 13, weight: .bold)).frame(width: 40, height: 40) }
+                    .accessibilityLabel("Remove \(f.name)")
+            }
+            .foregroundStyle(EColor.textSecondary)
+            Text("“\(f.experiencePrompt)”").font(EFont.body(13)).foregroundStyle(EColor.textSecondary).padding(.trailing, 8)
+        }
+        .padding(.leading, 14).padding(.trailing, 6).padding(.vertical, 12)
+        .eCard(radius: 18)
+        .overlay(RoundedRectangle(cornerRadius: 18).stroke(f.color, lineWidth: 1.5))
+    }
+
+    private var sequenceCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            SectionLabel("Ring touch sequence")
+            if arc.isEmpty {
+                Text("Pick a feeling to hear its touch.").font(EFont.body(13)).foregroundStyle(EColor.textSecondary)
+            } else {
+                FlowLayout(spacing: 8) {
+                    ForEach(Array(arc.enumerated()), id: \.element) { i, f in
+                        HStack(spacing: 8) {
+                            if i > 0 { Text("\(Feeling.sequenceGapMs / 1000) s").font(EFont.body(12, .semibold)).foregroundStyle(EColor.textMuted) }
+                            TouchGlyph(pattern: f.touch, color: f.color, scale: 0.02, height: 8, maxWidth: 70)
+                                .padding(.horizontal, 8).frame(height: 24).background(EColor.cardRaised, in: Capsule())
+                        }
+                    }
+                }
+                .accessibilityElement().accessibilityLabel(arc.map(\.name).joined(separator: ", then ") + " touch")
+                HStack(spacing: 12) {
+                    Text("Each feeling's own touch, in order, at least \(Feeling.sequenceGapMs / 1000) s apart. Reminders for this vision play the same.")
+                        .font(EFont.body(13)).foregroundStyle(EColor.textSecondary)
+                    Spacer(minLength: 0)
+                    Button("Feel it") { services.haptics.play(Feeling.sequence(arc)) }
+                        .font(EFont.body(13, .bold)).foregroundStyle(EColor.onAccent)
+                        .padding(.horizontal, 14).frame(height: 40).background(accent, in: Capsule())
+                }
+            }
+        }
+        .padding(16)
+        .background(Color(hex: "#17131F"), in: RoundedRectangle(cornerRadius: 18))
+        .overlay(RoundedRectangle(cornerRadius: 18).stroke(EColor.line))
     }
 
     private var imagesLabel: String {
@@ -136,10 +209,10 @@ struct ExperienceBuilderView: View {
     private var previewCard: some View {
         let draft = draftExperience()
         return ZStack(alignment: .bottom) {
-            SlideshowView(experience: draft, index: preview?.slideIndex ?? 0, fallback: feeling)
+            SlideshowView(experience: draft, index: preview?.slideIndex ?? 0, fallback: arc.first ?? .gratitude)
             HStack(spacing: 12) {
                 Button {
-                    if preview == nil { preview = ExperiencePlayback(track: track, touch: touch, haptics: services.haptics) }
+                    if preview == nil { preview = ExperiencePlayback(track: track, feelings: arc, haptics: services.haptics) }
                     preview?.toggle()
                 } label: {
                     Image(systemName: preview?.isPlaying == true ? "pause.fill" : "play.fill").foregroundStyle(EColor.onAccent)
@@ -147,7 +220,11 @@ struct ExperienceBuilderView: View {
                 }
                 .accessibilityLabel(preview?.isPlaying == true ? "Pause preview" : "Play preview")
                 VStack(alignment: .leading, spacing: 4) {
-                    HStack { Text("Preview · music + slideshow").font(EFont.body(12, .bold)); Spacer(); Text("\(timeString(preview?.position ?? 0)) / \(track.durationLabel)").font(EFont.body(12)).foregroundStyle(EColor.textSecondary) }
+                    HStack {
+                        Text(preview.map { "Preview · \($0.currentFeeling.name)" } ?? "Preview · music + slideshow").font(EFont.body(12, .bold))
+                        Spacer()
+                        Text("\(timeString(preview?.position ?? 0)) / \(track.durationLabel)").font(EFont.body(12)).foregroundStyle(EColor.textSecondary)
+                    }
                     ThinProgress(value: preview?.progress ?? 0, color: EColor.text, height: 4)
                 }
             }
@@ -177,7 +254,7 @@ struct ExperienceBuilderView: View {
 
     /// A transient, unsaved experience used for the preview tiles.
     private func draftExperience() -> Experience {
-        let e = Experience(title: title, points: points, feeling: feeling, trackID: track.id)
+        let e = Experience(title: title, points: points, feelings: arc.isEmpty ? [.gratitude] : arc, trackID: track.id)
         e.imageRefs = imageRefs
         return e
     }
@@ -185,19 +262,30 @@ struct ExperienceBuilderView: View {
     private func load() {
         guard !loaded else { return }
         loaded = true
-        guard let id = experienceID,
-              let e = try? context.fetch(FetchDescriptor<Experience>(predicate: #Predicate { $0.id == id })).first else {
-            let f = context.emotionProfile().activeFeeling
-            feeling = f; touch = f.touch; track = MusicTrack.default(for: f)
-            return
+        if let id = experienceID,
+           let e = try? context.fetch(FetchDescriptor<Experience>(predicate: #Predicate { $0.id == id })).first {
+            title = e.title
+            points = e.visionPoints.isEmpty ? [""] : e.visionPoints
+            arc = e.feelings
+            track = e.track
+            imageRefs = e.imageRefs
+            cueAuto = e.cueAuto
+        } else if let t = VisionTemplate.all.first(where: { $0.id == templateID }) {
+            title = t.title
+            points = t.points
+            arc = t.feelings
+            track = t.track
+        } else {
+            arc = [.joy, .gratitude]
+            track = MusicTrack.default(for: .joy)
         }
-        title = e.title
-        points = e.visionPoints.isEmpty ? [""] : e.visionPoints
-        feeling = e.feeling
-        track = e.track
-        imageRefs = e.imageRefs
-        touch = e.touch
-        cueAuto = e.cueAuto
+    }
+
+    private func finish(_ exp: Experience, startNow: Bool) {
+        preview?.stop()
+        if let onSaved { onSaved(exp, startNow); return }
+        dismiss()
+        if startNow { router.training = TrainingRequest(feeling: exp.feeling, experienceID: exp.id) }
     }
 
     @discardableResult
@@ -211,13 +299,40 @@ struct ExperienceBuilderView: View {
         }
         e.title = title.trimmingCharacters(in: .whitespaces).isEmpty ? "My vision" : title
         e.visionPoints = points.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
-        e.feeling = feeling
+        e.feelings = arc.isEmpty ? [.gratitude] : arc
+        e.customTouchData = nil   // v2: each feeling plays its own touch
         e.trackID = track.id
         e.imageRefs = imageRefs
-        e.touch = touch
         e.cueAuto = cueAuto
         try? context.save()
         return e
+    }
+}
+
+/// The song split into one coloured part per feeling, with time ranges.
+struct SongPartsBar: View {
+    let feelings: [Feeling]
+    let durationS: Int
+    var body: some View {
+        let n = max(1, feelings.count)
+        VStack(alignment: .leading, spacing: 6) {
+            Text("The song in parts").font(EFont.body(12)).foregroundStyle(EColor.textSecondary)
+            HStack(spacing: 3) {
+                ForEach(feelings) { f in
+                    RoundedRectangle(cornerRadius: 6).fill(f.color.opacity(0.22)).frame(height: 24)
+                        .overlay(Circle().fill(f.color).frame(width: 6, height: 6))
+                }
+            }
+            HStack(spacing: 3) {
+                ForEach(Array(feelings.enumerated()), id: \.element) { i, f in
+                    let a = durationS * i / n, b = durationS * (i + 1) / n
+                    (Text(f.name).bold().foregroundColor(EColor.text) + Text(" \(timeString(Double(a)))–\(timeString(Double(b)))"))
+                        .font(EFont.body(12)).foregroundStyle(EColor.textSecondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+        }
+        .accessibilityElement(children: .combine)
     }
 }
 

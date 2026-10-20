@@ -1,9 +1,9 @@
 import SwiftData
 import SwiftUI
 
-enum EOnboardingStep: Hashable { case consent, pair, vibeTest, chooseFeeling, trainIntro(Feeling), firstReminder(Feeling) }
+enum EOnboardingStep: Hashable { case consent, pair, vibeTest, firstVision, builder(String?), firstReminder(UUID?) }
 
-/// 1.1–1.5 then 2.1–2.4: first use runs straight into the first training session and reminder.
+/// 1.1–1.4, then 7.1 pick a first vision → shape it → live it once → 2.4 reminders for it.
 struct EmotionOnboardingView: View {
     @State private var path: [EOnboardingStep] = []
 
@@ -14,10 +14,10 @@ struct EmotionOnboardingView: View {
                     switch step {
                     case .consent: ConsentView(progress: 1) { path.append(.pair) }
                     case .pair: PairRingScreen(progress: 2) { path.append(.vibeTest) }
-                    case .vibeTest: VibeTestView(progress: 3) { path.append(.chooseFeeling) }
-                    case .chooseFeeling: ChooseFeelingView(progress: 4) { path.append(.trainIntro($0)) }
-                    case let .trainIntro(feeling): TrainIntroView(feeling: feeling, onboarding: true) { path.append(.firstReminder(feeling)) }
-                    case let .firstReminder(feeling): FirstReminderView(feeling: feeling)
+                    case .vibeTest: VibeTestView(progress: 3) { path.append(.firstVision) }
+                    case .firstVision: FirstVisionView(progress: 4) { path.append(.builder($0)) }
+                    case let .builder(templateID): OnboardingBuilderStep(templateID: templateID) { path.append(.firstReminder($0)) }
+                    case let .firstReminder(experienceID): FirstReminderView(experienceID: experienceID)
                     }
                 }
         }
@@ -390,5 +390,81 @@ struct ChooseFeelingView: View {
         .padding(.horizontal, 24).padding(.bottom, 24)
         .emotionScreen()
         .toolbar(.hidden, for: .navigationBar)
+    }
+}
+
+
+// MARK: 7.1 Pick your first vision
+
+struct FirstVisionView: View {
+    var progress: Int
+    /// Template id, or nil for "Write my own".
+    var onPick: (String?) -> Void
+    @Environment(\.modelContext) private var context
+    @State private var picked: String? = VisionTemplate.all.first?.id
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            EOnboardingHeader(progress: progress)
+            Text("What would you love to live?").font(EFont.display(30)).padding(.top, 20).padding(.bottom, 10)
+            Text("Pick a vision to start. You'll make it yours, then feel it as if it's already real, with your ring marking each feeling.")
+                .font(EFont.body(15)).foregroundStyle(EColor.textSecondary).padding(.bottom, 18)
+            ScrollView {
+                VStack(spacing: 8) {
+                    ForEach(VisionTemplate.all) { t in
+                        VisionTemplateRow(template: t, selected: picked == t.id) { picked = t.id }
+                    }
+                    Button { picked = nil } label: {
+                        HStack(spacing: 14) {
+                            RoundedRectangle(cornerRadius: 12).fill(EColor.cardRaised).frame(width: 40, height: 40)
+                                .overlay(Image(systemName: "pencil").foregroundStyle(EColor.textSecondary))
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Write my own").font(EFont.body(15, .bold))
+                                Text("You choose the feelings").font(EFont.body(12)).foregroundStyle(EColor.textSecondary)
+                            }
+                            Spacer()
+                        }
+                        .padding(.horizontal, 14).frame(minHeight: 64)
+                        .background(EColor.cardRaised, in: RoundedRectangle(cornerRadius: 18))
+                        .overlay(RoundedRectangle(cornerRadius: 18).stroke(picked == nil ? EColor.accent : .clear, lineWidth: 1.5))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            Button(picked == nil ? "Write my vision" : "Shape this vision") { onPick(picked) }
+                .buttonStyle(PrimaryButtonStyle()).padding(.top, 12)
+            Button("Skip for now") {
+                let p = context.emotionProfile()
+                p.onboardingCompleted = true
+                try? context.save()
+            }
+            .buttonStyle(TextLinkButtonStyle()).frame(maxWidth: .infinity)
+        }
+        .padding(.horizontal, 24).padding(.bottom, 24)
+        .emotionScreen()
+        .toolbar(.hidden, for: .navigationBar)
+    }
+}
+
+/// The builder inside onboarding: save → live it once → reminders.
+struct OnboardingBuilderStep: View {
+    let templateID: String?
+    var onDone: (UUID?) -> Void
+    @Environment(EmotionRouter.self) private var router
+    @State private var session: TrainingRequest?
+
+    var body: some View {
+        ExperienceBuilderView(experienceID: nil, templateID: templateID) { exp, startNow in
+            if startNow { session = TrainingRequest(feeling: exp.feeling, experienceID: exp.id) }
+            else { onDone(exp.id) }
+        }
+        .fullScreenCover(item: $session) { request in
+            TrainingSessionView(request: request) { _ in
+                session = nil
+                onDone(request.experienceID)
+            }
+            .simRingOverlay()
+            .environment(router)
+        }
     }
 }

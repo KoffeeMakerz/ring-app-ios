@@ -1,19 +1,20 @@
 import SwiftData
 import SwiftUI
 
+/// 7.2 Home — experiences first: today's vision to live, the next cue, your other visions, and a
+/// smaller way into practising single emotions.
 struct HomeView: View {
     @Environment(EmotionServices.self) private var services
     @Environment(EmotionRouter.self) private var router
-    @Query private var profiles: [EmotionProfile]
-    @Query(sort: \TrainingRecord.completedAt, order: .reverse) private var records: [TrainingRecord]
+    @Query(sort: \Experience.createdAt, order: .reverse) private var experiences: [Experience]
     @Query(sort: \ReminderEvent.scheduledAt) private var events: [ReminderEvent]
 
-    private var feeling: Feeling { profiles.first?.activeFeeling ?? .gratitude }
-    private var nextEvent: ReminderEvent? { events.first { $0.status == "scheduled" && $0.scheduledAt > Date() } }
-    private var todayCount: (done: Int, total: Int) {
-        let today = events.filter { Calendar.current.isDateInToday($0.scheduledAt) }
-        return (today.filter { $0.scheduledAt <= Date() }.count, today.count)
+    /// The vision most recently lived (or made).
+    private var today: Experience? {
+        experiences.max { ($0.lastPlayedAt ?? $0.createdAt) < ($1.lastPlayedAt ?? $1.createdAt) }
     }
+    private var others: [Experience] { experiences.filter { $0.id != today?.id } }
+    private var nextEvent: ReminderEvent? { events.first { $0.status == "scheduled" && $0.scheduledAt > Date() } }
 
     var body: some View {
         ScrollView {
@@ -21,7 +22,7 @@ struct HomeView: View {
                 HStack {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(greeting).font(EFont.body(14)).foregroundStyle(EColor.textSecondary)
-                        Text("Today: \(feeling.name.lowercased())").font(EFont.display(26))
+                        Text("Live it today").font(EFont.display(26))
                     }
                     Spacer()
                     Button { router.tab = .ring } label: {
@@ -36,76 +37,140 @@ struct HomeView: View {
                 }
                 .padding(.top, 8)
 
-                VStack(alignment: .leading, spacing: 0) {
-                    TouchGlyph(pattern: feeling.touch, color: feeling.color, scale: 0.025, height: 10)
-                    Text("“\(feeling.intention)”").font(EFont.display(21, .medium)).padding(.vertical, 16)
-                    HStack(spacing: 10) {
-                        Button("Practise · 5 min") { router.training = TrainingRequest(feeling: feeling, experienceID: nil) }
-                            .buttonStyle(PrimaryButtonStyle(color: feeling.color, height: 48))
-                        Button { services.haptics.play(feeling.touch) } label: {
-                            Image(systemName: "dot.radiowaves.left.and.right").font(.system(size: 18)).foregroundStyle(feeling.color)
-                                .frame(width: 48, height: 48).background(EColor.ground, in: Circle())
-                        }
-                        .accessibilityLabel("Feel the \(feeling.name.lowercased()) rhythm now")
-                    }
-                }
-                .padding(20).eCard(feeling.ground, radius: 24)
+                if let exp = today { todayCard(exp) } else { firstVisionCard }
 
                 Button { router.push(.reminders) } label: {
                     HStack(spacing: 14) {
-                        Image(systemName: "alarm").foregroundStyle(feeling.color).frame(width: 44, height: 44).background(EColor.cardRaised, in: Circle())
+                        Image(systemName: "alarm").foregroundStyle(EColor.accent).frame(width: 40, height: 40).background(EColor.cardRaised, in: Circle())
                         VStack(alignment: .leading, spacing: 2) {
                             Text(nextEvent.map { e in
                                 let time = e.scheduledAt.formatted(date: .omitted, time: .shortened)
-                                return Calendar.current.isDateInToday(e.scheduledAt) ? "Next ring cue around \(time)" : "Next ring cue tomorrow, \(time)"
+                                return Calendar.current.isDateInToday(e.scheduledAt) ? "Next cue around \(time)" : "Next cue tomorrow, \(time)"
                             } ?? "No reminders yet")
-                                .font(EFont.body(15, .semibold))
-                            Text(nextEvent == nil ? "Set reminders to keep the feeling alive"
-                                 : todayCount.total == 0 ? "\(feeling.name) · none left today"
-                                 : "\(feeling.name) · \(todayCount.done) of \(todayCount.total) today")
-                                .font(EFont.body(13)).foregroundStyle(EColor.textSecondary)
+                            .font(EFont.body(15, .semibold))
+                            Text(cueSubtitle).font(EFont.body(13)).foregroundStyle(EColor.textSecondary).lineLimit(1)
                         }
                         Spacer()
                         Image(systemName: "chevron.right").foregroundStyle(EColor.textMuted)
                     }
-                    .padding(.horizontal, 16).padding(.vertical, 14).eCard()
+                    .padding(.horizontal, 16).padding(.vertical, 12).eCard()
+                }
+                .buttonStyle(.plain)
+
+                if today != nil {
+                    HStack {
+                        SectionLabel("Your experiences")
+                        Spacer()
+                        Button("See all") { router.tab = .library }.buttonStyle(TextLinkButtonStyle())
+                    }
+                    .padding(.top, 2)
+                    HStack(spacing: 10) {
+                        ForEach(others.prefix(2)) { exp in
+                            Button { router.training = TrainingRequest(feeling: exp.feeling, experienceID: exp.id) } label: {
+                                VStack(alignment: .leading, spacing: 0) {
+                                    SlideTile(experience: exp, index: 0, fallback: exp.feeling).frame(height: 64).clipped()
+                                    VStack(alignment: .leading, spacing: 6) {
+                                        Text(exp.title).font(EFont.body(13, .bold)).lineLimit(2).multilineTextAlignment(.leading)
+                                        ArcDots(feelings: exp.feelings)
+                                    }
+                                    .padding(10)
+                                    Spacer(minLength: 0)
+                                }
+                                .frame(maxWidth: .infinity, minHeight: 132, alignment: .topLeading)
+                                .eCard(radius: 18).clipShape(RoundedRectangle(cornerRadius: 18))
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("Live \(exp.title)")
+                        }
+                        Button { router.push(.builder(nil)) } label: {
+                            VStack(spacing: 6) {
+                                Image(systemName: "plus").font(.system(size: 18, weight: .bold))
+                                Text("New vision").font(EFont.body(13, .bold))
+                            }
+                            .foregroundStyle(EColor.accent)
+                            .frame(maxWidth: .infinity, minHeight: 132)
+                            .overlay(RoundedRectangle(cornerRadius: 18).strokeBorder(Color(hex: "#4A4160"), style: StrokeStyle(lineWidth: 1.5, dash: [5, 4])))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+
+                Button { router.tab = .train } label: {
+                    HStack(spacing: 12) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Practise an emotion").font(EFont.body(15, .semibold))
+                            Text("Strengthen a touch on its own · 5 min").font(EFont.body(13)).foregroundStyle(EColor.textSecondary)
+                        }
+                        Spacer()
+                        ArcDots(feelings: [.joy, .gratitude, .love], size: 10)
+                        Image(systemName: "chevron.right").foregroundStyle(EColor.textMuted)
+                    }
+                    .padding(.horizontal, 16).padding(.vertical, 12).eCard()
                 }
                 .buttonStyle(.plain)
 
                 HStack(spacing: 10) {
                     quick("Meditate", "water.waves", Color(hex: "#7FB2F0")) { router.tab = .meditate }
-                    quick("Create", "plus", Color(hex: "#F27A9B")) { router.push(.builder(nil)) }
                     quick("Learn", "play.rectangle", Color(hex: "#B892FF")) { router.push(.learn) }
-                }
-
-                SectionLabel("Your feelings").padding(.top, 4)
-                ForEach(Feeling.unlockOrder.prefix(3)) { f in
-                    let n = FeelingProgress.sessions(f, records)
-                    let unlocked = FeelingProgress.isUnlocked(f, records: records, first: profiles.first?.firstFeeling ?? .gratitude)
-                    Button { if unlocked { router.push(.trainIntro(f)) } } label: {
-                        HStack(spacing: 12) {
-                            Circle().fill(f.color).frame(width: 10, height: 10)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(f.name).font(EFont.body(15, .semibold))
-                                if !unlocked { Text(FeelingProgress.lockReason(f)).font(EFont.body(12)).foregroundStyle(EColor.textSecondary) }
-                            }
-                            Spacer()
-                            if unlocked {
-                                ThinProgress(value: Double(n) / 7, color: f.color).frame(width: 90)
-                                Text("\(min(n, 7))/7").font(EFont.body(13)).foregroundStyle(EColor.textSecondary).frame(width: 28, alignment: .trailing)
-                            } else {
-                                Image(systemName: "lock").foregroundStyle(EColor.textMuted)
-                            }
-                        }
-                        .padding(.horizontal, 16).frame(minHeight: 52).eCard(radius: 16)
-                    }
-                    .buttonStyle(.plain)
                 }
             }
             .padding(.horizontal, 20).padding(.bottom, 32)
         }
         .emotionScreen()
         .toolbar(.hidden, for: .navigationBar)
+    }
+
+    private var cueSubtitle: String {
+        guard let e = nextEvent else { return "Set reminders to keep your vision alive" }
+        if let id = e.experienceID, let exp = experiences.first(where: { $0.id == id }) {
+            return "\(exp.title) · " + exp.feelings.map { $0.name.lowercased() }.joined(separator: ", then ")
+        }
+        return e.feeling.name
+    }
+
+    private func todayCard(_ exp: Experience) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ZStack(alignment: .topLeading) {
+                SlideTile(experience: exp, index: 0, fallback: exp.feeling).frame(height: 104).clipped()
+                Text("TODAY'S EXPERIENCE").font(EFont.body(11, .bold)).tracking(0.8).foregroundStyle(EColor.accent)
+                    .padding(.horizontal, 10).frame(height: 26).background(EColor.ground, in: Capsule()).padding(12)
+            }
+            VStack(alignment: .leading, spacing: 0) {
+                Text(exp.title).font(EFont.display(22))
+                if let point = exp.visionPoints.first {
+                    Text("“\(point).”").font(EFont.body(13)).foregroundStyle(EColor.textSecondary).padding(.top, 3).lineLimit(2)
+                }
+                ArcChips(feelings: exp.feelings).padding(.top, 12)
+                HStack(spacing: 10) {
+                    Button { router.training = TrainingRequest(feeling: exp.feeling, experienceID: exp.id) } label: {
+                        Label("Live it · \(max(1, exp.track.durationS / 60 + 1)) min", systemImage: "play.fill")
+                    }
+                    .buttonStyle(PrimaryButtonStyle(height: 48))
+                    Button { services.haptics.play(exp.touchSequence) } label: {
+                        Image(systemName: "dot.radiowaves.left.and.right").font(.system(size: 18)).foregroundStyle(EColor.accent)
+                            .frame(width: 48, height: 48).background(EColor.ground, in: Circle())
+                    }
+                    .accessibilityLabel("Feel this vision's ring touches now")
+                }
+                .padding(.top, 14)
+            }
+            .padding(18)
+        }
+        .eCard(radius: 24)
+        .clipShape(RoundedRectangle(cornerRadius: 24))
+    }
+
+    private var firstVisionCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("What would you love to live?").font(EFont.display(22))
+            Text("Pick a vision, feel it as if it's already real, and your ring will bring it back through the day.")
+                .font(EFont.body(14)).foregroundStyle(EColor.textSecondary)
+            ForEach(VisionTemplate.all.prefix(3)) { t in
+                VisionTemplateRow(template: t, selected: false) { router.push(.newFromTemplate(t.id)) }
+            }
+            Button("Write my own") { router.push(.builder(nil)) }.buttonStyle(TextLinkButtonStyle()).frame(maxWidth: .infinity)
+        }
+        .padding(18).eCard(radius: 24)
     }
 
     private var greeting: String {
@@ -115,12 +180,40 @@ struct HomeView: View {
 
     private func quick(_ title: String, _ icon: String, _ color: Color, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            VStack(alignment: .leading, spacing: 8) {
-                Image(systemName: icon).font(.system(size: 20)).foregroundStyle(color)
+            HStack(spacing: 10) {
+                Image(systemName: icon).font(.system(size: 18)).foregroundStyle(color)
                 Text(title).font(EFont.body(14, .semibold))
+                Spacer()
             }
-            .padding(14).frame(maxWidth: .infinity, alignment: .leading).eCard(radius: 18)
+            .padding(14).frame(maxWidth: .infinity).eCard(radius: 18)
         }
         .buttonStyle(.plain)
+    }
+}
+
+/// "Joy → Gratitude" as coloured chips.
+struct ArcChips: View {
+    let feelings: [Feeling]
+    var body: some View {
+        HStack(spacing: 6) {
+            ForEach(Array(feelings.enumerated()), id: \.element) { i, f in
+                if i > 0 { Image(systemName: "arrow.right").font(.system(size: 11, weight: .bold)).foregroundStyle(EColor.textMuted) }
+                HStack(spacing: 6) { Circle().fill(f.color).frame(width: 8, height: 8); Text(f.name).font(EFont.body(13, .semibold)) }
+                    .padding(.horizontal, 10).frame(height: 28).background(f.ground, in: Capsule())
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(feelings.map(\.name).joined(separator: ", then "))
+    }
+}
+
+/// Compact row of feeling dots.
+struct ArcDots: View {
+    let feelings: [Feeling]
+    var size: CGFloat = 8
+    var body: some View {
+        HStack(spacing: 4) { ForEach(feelings) { Circle().fill($0.color).frame(width: size, height: size) } }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(feelings.map(\.name).joined(separator: ", "))
     }
 }

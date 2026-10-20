@@ -4,39 +4,34 @@ import SwiftUI
 // MARK: Train tab hub
 
 struct TrainHubView: View {
-    @Query private var profiles: [EmotionProfile]
     @Query(sort: \TrainingRecord.completedAt, order: .reverse) private var records: [TrainingRecord]
+    @Query private var experiences: [Experience]
     @Environment(EmotionRouter.self) private var router
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 14) {
-                Text("Train").font(EFont.display(28)).padding(.top, 8)
-                Text("Link each feeling to its touch. Seven short sessions per feeling.")
-                    .font(EFont.body(15)).foregroundStyle(EColor.textSecondary)
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Practise emotions").font(EFont.display(28)).padding(.top, 8)
+                Text("Five minutes with one feeling and its ring touch. The stronger each link, the more alive your experiences feel.")
+                    .font(EFont.body(15)).foregroundStyle(EColor.textSecondary).padding(.bottom, 4)
                 ForEach(Feeling.unlockOrder) { feeling in
-                    let done = records.filter { $0.feelingRaw == feeling.rawValue }.count
-                    let unlocked = FeelingProgress.isUnlocked(feeling, records: records, first: profiles.first?.firstFeeling ?? .gratitude)
-                    Button { if unlocked { router.push(.trainIntro(feeling)) } } label: {
-                        HStack(spacing: 14) {
-                            Circle().fill(feeling.color).frame(width: 12, height: 12)
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(feeling.name).font(EFont.body(16, .bold))
-                                if unlocked {
-                                    TouchGlyph(pattern: feeling.touch, color: feeling.color, scale: 0.02, height: 7)
-                                } else {
-                                    Text(FeelingProgress.lockReason(feeling)).font(EFont.body(12)).foregroundStyle(EColor.textSecondary)
+                    let done = FeelingProgress.sessions(feeling, records)
+                    let used = experiences.filter { $0.feelings.contains(feeling) }.count
+                    Button { router.push(.trainIntro(feeling)) } label: {
+                        HStack(spacing: 12) {
+                            VStack(alignment: .leading, spacing: 6) {
+                                HStack(spacing: 8) { Circle().fill(feeling.color).frame(width: 10, height: 10); Text(feeling.name).font(EFont.body(16, .bold)) }
+                                TouchGlyph(pattern: feeling.touch, color: feeling.color, scale: 0.02, height: 7)
+                                HStack(spacing: 8) {
+                                    ThinProgress(value: Double(min(done, Feeling.programmeLength)) / Double(Feeling.programmeLength), color: feeling.color).frame(width: 64)
+                                    Text("\(min(done, Feeling.programmeLength)) of \(Feeling.programmeLength) · " + (used == 0 ? "not in an experience yet" : "in \(used) \(used == 1 ? "experience" : "experiences")"))
+                                        .font(EFont.body(12)).foregroundStyle(EColor.textSecondary)
                                 }
                             }
                             Spacer()
-                            if unlocked {
-                                Text("\(min(done, Feeling.programmeLength))/\(Feeling.programmeLength)").font(EFont.body(13)).foregroundStyle(EColor.textSecondary)
-                                Image(systemName: "chevron.right").foregroundStyle(EColor.textMuted)
-                            } else {
-                                Image(systemName: "lock").foregroundStyle(EColor.textMuted)
-                            }
+                            Text("Practise").font(EFont.body(13, .bold)).padding(.horizontal, 14).frame(height: 40).background(EColor.cardRaised, in: Capsule())
                         }
-                        .padding(.horizontal, 16).frame(minHeight: 64).eCard(radius: 16)
+                        .padding(.leading, 16).padding(.trailing, 10).padding(.vertical, 12).eCard(radius: 18)
                     }
                     .buttonStyle(.plain)
                 }
@@ -56,16 +51,6 @@ struct TrainHubView: View {
 enum FeelingProgress {
     static func sessions(_ feeling: Feeling, _ records: [TrainingRecord]) -> Int {
         records.filter { $0.feelingRaw == feeling.rawValue }.count
-    }
-    static func isUnlocked(_ feeling: Feeling, records: [TrainingRecord], first: Feeling) -> Bool {
-        if feeling == first { return true }
-        guard let idx = Feeling.unlockOrder.firstIndex(of: feeling), idx > 0 else { return true }
-        let previous = Feeling.unlockOrder[idx - 1]
-        return sessions(previous, records) >= Feeling.sessionsToUnlockNext || sessions(feeling, records) > 0
-    }
-    static func lockReason(_ feeling: Feeling) -> String {
-        guard let idx = Feeling.unlockOrder.firstIndex(of: feeling), idx > 0 else { return "" }
-        return "Opens after \(Feeling.sessionsToUnlockNext) \(Feeling.unlockOrder[idx - 1].name.lowercased()) sessions"
     }
 }
 
@@ -93,8 +78,8 @@ struct TrainIntroView: View {
         VStack(alignment: .leading, spacing: 0) {
             if onboarding { EOnboardingHeader(progress: nil) }
             HStack { Spacer(); Text("Session \(sessionNumber) of \(Feeling.programmeLength)").font(EFont.body(13, .semibold)).foregroundStyle(EColor.textSecondary); Spacer() }
-            Text("TRAIN · \(feeling.name.uppercased())").font(EFont.label).tracking(1.2).foregroundStyle(feeling.color).padding(.top, 18)
-            Text("Link \(feeling.name.lowercased()) to its rhythm").font(EFont.display(30)).padding(.top, 6).padding(.bottom, 16)
+            Text("PRACTISE · \(feeling.name.uppercased())").font(EFont.label).tracking(1.2).foregroundStyle(feeling.color).padding(.top, 18)
+            Text("Link \(feeling.name.lowercased()) to its touch").font(EFont.display(30)).padding(.top, 6).padding(.bottom, 16)
             Button {} label: {
                 VStack(spacing: 10) {
                     Image(systemName: "play.fill").font(.system(size: 22)).foregroundStyle(EColor.ground)
@@ -262,54 +247,96 @@ struct TrainingSessionView: View {
         playback?.play()
     }
 
+    /// The touch played once more at check-in: the whole sequence for an experience.
+    private var closingTouch: TouchPattern {
+        if let experience, experience.feelings.count > 1 { return experience.touchSequence }
+        return playback?.touch ?? feeling.touch
+    }
+
     private func feelView(_ p: ExperiencePlayback) -> some View {
-        ZStack(alignment: .bottom) {
-            SlideshowView(experience: experience, index: p.slideIndex, fallback: feeling, showLabel: false)
+        let now = p.currentFeeling
+        let multi = p.parts.count > 1
+        return ZStack(alignment: .bottom) {
+            SlideshowView(experience: experience, index: p.slideIndex, fallback: now, showLabel: false)
                 .ignoresSafeArea()
             VStack(alignment: .leading, spacing: 0) {
                 HStack {
                     Button { close(finished: false) } label: { Image(systemName: "xmark").frame(width: 44, height: 44).background(EColor.ground.opacity(0.8), in: Circle()) }
                         .accessibilityLabel("End session")
                     Spacer()
-                    Text("Step 2 · Feel it").font(EFont.body(13, .semibold)).padding(.horizontal, 14).padding(.vertical, 8).background(EColor.ground.opacity(0.85), in: Capsule())
+                    Text(multi ? "Part \(p.currentPart.index + 1) of \(p.parts.count) · \(now.name)" : "Step 2 · Feel it")
+                        .font(EFont.body(13, .semibold)).padding(.horizontal, 14).padding(.vertical, 8).background(EColor.ground.opacity(0.85), in: Capsule())
                     Spacer()
                     Color.clear.frame(width: 44, height: 44)
                 }
+                if multi {
+                    HStack(spacing: 6) {
+                        ForEach(p.parts) { part in
+                            GeometryReader { geo in
+                                ZStack(alignment: .leading) {
+                                    Capsule().fill(EColor.ground.opacity(0.8))
+                                    Capsule().fill(part.feeling.color).frame(width: geo.size.width * p.fraction(of: part))
+                                }
+                            }
+                            .frame(height: 4)
+                        }
+                    }
+                    .padding(.top, 12)
+                    .accessibilityHidden(true)
+                }
                 Spacer()
-                Text(experience?.visionPoints.first.map { "\($0)." } ?? feeling.trainingPrompt)
-                    .font(EFont.display(26, .medium)).padding(.horizontal, 4).padding(.bottom, 20)
-                    .shadow(color: .black.opacity(0.4), radius: 6)
+                if experience != nil {
+                    HStack(spacing: 8) {
+                        Circle().fill(now.color).frame(width: 8, height: 8)
+                        Text(now.name).font(EFont.body(13, .bold)).foregroundStyle(now.color)
+                    }
+                    .padding(.horizontal, 12).frame(height: 30).background(EColor.ground.opacity(0.9), in: Capsule())
+                    .padding(.bottom, 10)
+                }
+                Text(experience != nil ? now.experiencePrompt : feeling.trainingPrompt)
+                    .font(EFont.display(25, .medium)).padding(.horizontal, 4).padding(.bottom, 20)
+                    .shadow(color: .black.opacity(0.5), radius: 6)
+                    .animation(.easeInOut, value: now)
                 VStack(alignment: .leading, spacing: 18) {
                     HStack(spacing: 14) {
-                        TouchGlyph(pattern: p.touch, color: feeling.color, scale: 0.02, height: 12, maxWidth: 64)
+                        TouchGlyph(pattern: p.touch, color: now.color, scale: 0.02, height: 12, maxWidth: 64)
                             .opacity(p.isInCue ? 1 : 0.5)
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(p.isInCue ? "Ring is playing \(feeling.name.lowercased())"
-                                 : p.autoCues ? "Next ring cue coming" : "Tap the ring button when it peaks").font(EFont.body(15, .semibold))
-                            Text(p.autoCues ? "Notice the feeling as it buzzes" : "You choose the moments in this song").font(EFont.body(13)).foregroundStyle(EColor.textSecondary)
+                            Text(p.isInCue ? "Ring is playing \(now.name.lowercased())"
+                                 : p.autoCues ? "Next \(now.name.lowercased()) touch coming" : "Tap the ring button when it peaks").font(EFont.body(15, .semibold))
+                            Text(p.isInCue ? "Let the feeling peak as it buzzes" : experience != nil ? "Stay with the picture. Feel it as real." : "Notice the feeling as it buzzes")
+                                .font(EFont.body(13)).foregroundStyle(EColor.textSecondary)
                         }
                     }
                     .padding(14).frame(maxWidth: .infinity, alignment: .leading)
                     .eCard(radius: 18)
-                    .overlay(RoundedRectangle(cornerRadius: 18).stroke(p.isInCue ? feeling.color : .clear, lineWidth: 1.5))
-                    CueTimeline(playback: p, color: feeling.color)
+                    .overlay(RoundedRectangle(cornerRadius: 18).stroke(p.isInCue ? now.color : .clear, lineWidth: 1.5))
+                    CueTimeline(playback: p, color: now.color)
                     HStack {
                         circleButton("bell.slash", "Mute ring") { p.cuesEnabled.toggle() }
                             .opacity(p.cuesEnabled ? 1 : 0.5)
                         Spacer()
-                        circleButton("gobackward.15", "Back 15 seconds", filled: false) { p.seek(by: -15) }
+                        if multi {
+                            circleButton("backward.end.fill", "Previous part", filled: false) { p.seekToPart(max(0, p.currentPart.index - 1)) }
+                        } else {
+                            circleButton("gobackward.15", "Back 15 seconds", filled: false) { p.seek(by: -15) }
+                        }
                         Spacer()
                         Button { p.toggle() } label: {
                             Image(systemName: p.isPlaying ? "pause.fill" : "play.fill").font(.system(size: 26))
-                                .foregroundStyle(EColor.onAccent).frame(width: 72, height: 72).background(feeling.color, in: Circle())
+                                .foregroundStyle(EColor.onAccent).frame(width: 72, height: 72).background(now.color, in: Circle())
                         }
                         .accessibilityLabel(p.isPlaying ? "Pause" : "Play")
                         Spacer()
-                        circleButton("goforward.15", "Forward 15 seconds", filled: false) { p.seek(by: 15) }
+                        if multi {
+                            circleButton("forward.end.fill", "Next part", filled: false) { p.seekToPart(min(p.parts.count - 1, p.currentPart.index + 1)) }
+                        } else {
+                            circleButton("goforward.15", "Forward 15 seconds", filled: false) { p.seek(by: 15) }
+                        }
                         Spacer()
                         circleButton("dot.radiowaves.left.and.right", "Replay ring cue now") { p.playCueNow() }
                     }
-                    Button("Finish and check in") { p.pause(); stage = .reflect; services.haptics.play(p.touch) }
+                    Button("Finish and check in") { p.pause(); stage = .reflect; services.haptics.play(closingTouch) }
                         .buttonStyle(TextLinkButtonStyle()).frame(maxWidth: .infinity)
                 }
                 .padding(20)
@@ -320,7 +347,7 @@ struct TrainingSessionView: View {
         }
         .foregroundStyle(EColor.text)
         .background(EColor.ground)
-        .onChange(of: p.progress >= 1) { _, done in if done { stage = .reflect; services.haptics.play(p.touch) } }
+        .onChange(of: p.progress >= 1) { _, done in if done { stage = .reflect; services.haptics.play(closingTouch) } }
     }
 
     private func circleButton(_ icon: String, _ label: String, filled: Bool = true, action: @escaping () -> Void) -> some View {
@@ -335,13 +362,16 @@ struct TrainingSessionView: View {
     // Reflect & rate.
     private var reflectView: some View {
         let done = FeelingProgress.sessions(feeling, records)
+        let arc = experience?.feelings ?? [feeling]
+        let arcText = arc.map { $0.name.lowercased() }.joined(separator: ", then ")
         return VStack(alignment: .leading, spacing: 12) {
-            Text("SESSION \(min(done + 1, Feeling.programmeLength)) COMPLETE").font(EFont.label).tracking(1.2).foregroundStyle(feeling.color).padding(.top, 30)
+            Text(experience.map { "SESSION COMPLETE · \($0.title.uppercased())" } ?? "SESSION \(min(done + 1, Feeling.programmeLength)) COMPLETE")
+                .font(EFont.label).tracking(1.2).foregroundStyle(feeling.color).padding(.top, 30).lineLimit(1)
             Text("One last buzz").font(EFont.display(30))
-            Text("Your ring played the \(feeling.name.lowercased()) rhythm once more, without music. Notice what comes up.")
+            Text("Your ring played \(arcText) once more, without music. Notice what comes up.")
                 .font(EFont.body(15)).foregroundStyle(EColor.textSecondary)
             VStack(alignment: .leading, spacing: 12) {
-                Text("How much \(feeling.name.lowercased()) did the rhythm bring back?").font(EFont.body(15, .semibold))
+                Text(experience != nil ? "How real did it feel?" : "How much \(feeling.name.lowercased()) did the rhythm bring back?").font(EFont.body(15, .semibold))
                 HStack(spacing: 8) {
                     ForEach(1...5, id: \.self) { n in
                         Button { rating = n } label: {
@@ -371,13 +401,23 @@ struct TrainingSessionView: View {
                 }
             }
             .padding(16).eCard()
-            VStack(alignment: .leading, spacing: 10) {
-                HStack { Text("\(feeling.name) training").font(EFont.body(14, .semibold)); Spacer(); Text("\(min(done + 1, 7)) of 7 sessions").font(EFont.body(13)).foregroundStyle(EColor.textSecondary) }
-                HStack(spacing: 6) { ForEach(0..<7, id: \.self) { i in Capsule().fill(i <= done ? feeling.color : EColor.line).frame(height: 6) } }
-                Text("Reminders work best after about 3 sessions. You can start them now at a low frequency.").font(EFont.body(13)).foregroundStyle(EColor.textSecondary)
+            if experience == nil {
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack { Text("\(feeling.name) practice").font(EFont.body(14, .semibold)); Spacer(); Text("\(min(done + 1, 7)) of 7 sessions").font(EFont.body(13)).foregroundStyle(EColor.textSecondary) }
+                    HStack(spacing: 6) { ForEach(0..<7, id: \.self) { i in Capsule().fill(i <= done ? feeling.color : EColor.line).frame(height: 6) } }
+                    Text("Each practice strengthens this touch in every experience that uses it.").font(EFont.body(13)).foregroundStyle(EColor.textSecondary)
+                }
+                .padding(16)
+                .background(Color(hex: "#17131F"), in: RoundedRectangle(cornerRadius: 20))
+            } else {
+                HStack(spacing: 8) {
+                    ForEach(arc) { f in
+                        HStack(spacing: 6) { Circle().fill(f.color).frame(width: 8, height: 8); Text(f.name).font(EFont.body(13, .semibold)) }
+                            .padding(.horizontal, 10).frame(height: 30).background(f.ground, in: Capsule())
+                    }
+                }
+                Text("Each feeling in this vision also counts as practice for its touch.").font(EFont.body(13)).foregroundStyle(EColor.textSecondary)
             }
-            .padding(16)
-            .background(Color(hex: "#17131F"), in: RoundedRectangle(cornerRadius: 20))
             Spacer()
             Button("Save") { saveAndFinish() }.buttonStyle(PrimaryButtonStyle(color: feeling.color))
             Button("Train again") {
@@ -391,7 +431,9 @@ struct TrainingSessionView: View {
     }
 
     private func save() {
-        context.insert(TrainingRecord(feeling: feeling, experienceID: request.experienceID, rating: rating, comfort: comfort))
+        for f in experience?.feelings ?? [feeling] {
+            context.insert(TrainingRecord(feeling: f, experienceID: request.experienceID, rating: rating, comfort: comfort))
+        }
         experience?.lastPlayedAt = Date()
         try? context.save()
     }
@@ -435,13 +477,18 @@ struct CueTimeline: View {
             GeometryReader { geo in
                 let w = geo.size.width
                 ZStack(alignment: .leading) {
-                    Capsule().fill(EColor.line).frame(height: 4)
+                    HStack(spacing: playback.parts.count > 1 ? 3 : 0) {
+                        ForEach(playback.parts) { part in
+                            Capsule().fill(playback.parts.count > 1 ? part.feeling.color.opacity(0.3) : EColor.line).frame(height: 4)
+                        }
+                    }
                     Capsule().fill(EColor.text).frame(width: w * playback.progress, height: 4)
                     ForEach(Array((playback.autoCues ? playback.track.cueMarkersS : []).enumerated()), id: \.offset) { i, s in
                         let played = Double(s) <= playback.position
+                        let cueColor = playback.parts.count > 1 ? playback.feeling(forCue: i).color : color
                         Circle()
-                            .fill(played ? color : .clear)
-                            .overlay(Circle().stroke(color, lineWidth: 2))
+                            .fill(played ? cueColor : EColor.ground)
+                            .overlay(Circle().stroke(cueColor, lineWidth: 2))
                             .frame(width: 12, height: 12)
                             .offset(x: w * CGFloat(Double(s) / playback.duration) - 6)
                     }
@@ -465,27 +512,53 @@ func timeString(_ s: Double) -> String {
     return "\(t / 60):\(String(format: "%02d", t % 60))"
 }
 
-// MARK: 2.4 First reminder
+// MARK: 2.4 First reminder — spread through the day (default) or at set times
 
 struct FirstReminderView: View {
-    let feeling: Feeling
+    let experienceID: UUID?
     @Environment(\.modelContext) private var context
+    @Query private var experiences: [Experience]
+    @Query private var profiles: [EmotionProfile]
+    @State private var setTimes = false
     @State private var perDay = 3
-    @State private var start = Calendar.current.date(bySettingHour: 9, minute: 0, second: 0, of: Date())!
-    @State private var end = Calendar.current.date(bySettingHour: 20, minute: 0, second: 0, of: Date())!
+    @State private var start = dateFromMinutes(9 * 60)
+    @State private var end = dateFromMinutes(20 * 60)
     @State private var random = true
     @State private var checkIn = true
+    @State private var times: [SetTime] = [
+        SetTime(minutes: 7 * 60 + 30),
+        SetTime(minutes: 13 * 60, days: SetTime.weekdays),
+    ]
+
+    private var experience: Experience? { experiences.first { $0.id == experienceID } }
+    private var arc: [Feeling] { experience?.feelings ?? [profiles.first?.activeFeeling ?? .gratitude] }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             EOnboardingHeader(progress: nil)
-            Text("\(feeling.name), through the day").font(EFont.display(30)).padding(.top, 18).padding(.bottom, 8)
-            Text("Your ring plays the \(feeling.name.lowercased()) rhythm. Pause for a breath and recall the feeling.")
-                .font(EFont.body(15)).foregroundStyle(EColor.textSecondary).padding(.bottom, 20)
-            ReminderEditor(perDay: $perDay, start: $start, end: $end, random: $random, checkIn: $checkIn)
-            InfoNote(icon: "moon", text: "Quiet hours 21:00–08:00 are on. Change them in Reminders any time.").padding(.top, 16)
-            Spacer()
-            Button("Save and finish") { finish(save: true) }.buttonStyle(PrimaryButtonStyle())
+            ScrollView {
+                VStack(alignment: .leading, spacing: 0) {
+                    Text("\(experience?.title ?? arc[0].name), through the day").font(EFont.display(28)).padding(.top, 14).padding(.bottom, 6)
+                    Text("Your ring plays \(arc.map { $0.name.lowercased() }.joined(separator: ", then ")). Pause for a breath and see it as real.")
+                        .font(EFont.body(15)).foregroundStyle(EColor.textSecondary).padding(.bottom, 16)
+                    Picker("Reminder style", selection: $setTimes) {
+                        Text("Spread through the day").tag(false)
+                        Text("At set times").tag(true)
+                    }
+                    .pickerStyle(.segmented).padding(.bottom, 20)
+                    if setTimes {
+                        SetTimesEditor(times: $times)
+                        InfoNote(icon: "info.circle", text: SetTimesEditor.iPhoneTimingNote).padding(.top, 14)
+                        ToggleRow(title: "Quick check-in after", subtitle: "A notification to rate the moment", isOn: $checkIn)
+                            .padding(.horizontal, 16).eCard().padding(.top, 12)
+                    } else {
+                        ReminderEditor(perDay: $perDay, start: $start, end: $end, random: $random, checkIn: $checkIn)
+                        InfoNote(icon: "moon", text: "Quiet hours 21:00–08:00 are on. Change them in Reminders any time.").padding(.top, 16)
+                    }
+                }
+            }
+            .scrollDismissesKeyboard(.interactively)
+            Button("Save and finish") { finish(save: true) }.buttonStyle(PrimaryButtonStyle()).padding(.top, 12)
             Button("Later") { finish(save: false) }.buttonStyle(TextLinkButtonStyle()).frame(maxWidth: .infinity)
         }
         .padding(.horizontal, 24).padding(.bottom, 24)
@@ -495,12 +568,26 @@ struct FirstReminderView: View {
 
     private func finish(save: Bool) {
         if save {
-            let rule = ReminderRule(feeling: feeling, perDay: perDay)
-            rule.windowStartMinutes = minutes(start)
-            rule.windowEndMinutes = minutes(end)
-            rule.randomTimes = random
-            rule.checkInAfter = checkIn
-            context.insert(rule)
+            if setTimes {
+                for t in times {
+                    let rule = ReminderRule(feeling: arc[0], perDay: 1)
+                    rule.experienceID = experience?.id
+                    rule.randomTimes = false
+                    rule.fixedMinutes = [t.minutes]
+                    rule.fixedDays = t.days
+                    rule.enabled = t.on
+                    rule.checkInAfter = checkIn
+                    context.insert(rule)
+                }
+            } else {
+                let rule = ReminderRule(feeling: arc[0], perDay: perDay)
+                rule.experienceID = experience?.id
+                rule.windowStartMinutes = minutes(start)
+                rule.windowEndMinutes = minutes(end)
+                rule.randomTimes = true   // spread = varied times inside the window
+                rule.checkInAfter = checkIn
+                context.insert(rule)
+            }
         }
         let p = context.emotionProfile()
         p.onboardingCompleted = true
@@ -534,15 +621,16 @@ struct ReminderEditor: View {
             SectionLabel("When").padding(.top, 22).padding(.bottom, 10)
             VStack(spacing: 0) {
                 HStack {
-                    Text("Between").font(EFont.body(15, .semibold))
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Between").font(EFont.body(15, .semibold))
+                        Text("Times vary each day").font(EFont.body(12)).foregroundStyle(EColor.textSecondary)
+                    }
                     Spacer()
                     DatePicker("Start", selection: $start, displayedComponents: .hourAndMinute).labelsHidden()
                     Text("–")
                     DatePicker("End", selection: $end, displayedComponents: .hourAndMinute).labelsHidden()
                 }
                 .frame(minHeight: 56)
-                Divider().overlay(EColor.line)
-                ToggleRow(title: "Surprise me", subtitle: "Random times so it stays fresh", isOn: $random)
                 Divider().overlay(EColor.line)
                 ToggleRow(title: "Quick check-in after", subtitle: "A notification to rate the moment", isOn: $checkIn)
             }

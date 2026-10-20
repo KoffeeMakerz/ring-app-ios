@@ -25,14 +25,15 @@ final class EmotionServices {
     }
 
     func playback(for experience: Experience) -> ExperiencePlayback {
-        let p = ExperiencePlayback(track: experience.track, touch: experience.touch, haptics: haptics)
+        let custom = experience.customTouchData == nil ? nil : experience.touch
+        let p = ExperiencePlayback(track: experience.track, feelings: experience.feelings, haptics: haptics, singleTouchOverride: custom)
         p.slideCount = max(1, experience.photoIdentifiers.count > 0 ? experience.photoIdentifiers.count : 6)
         p.autoCues = experience.cueAuto
         return p
     }
 
     func playback(feeling: Feeling, track: MusicTrack) -> ExperiencePlayback {
-        ExperiencePlayback(track: track, touch: feeling.touch, haptics: haptics)
+        ExperiencePlayback(track: track, feelings: [feeling], haptics: haptics)
     }
 
     /// Debug builds can switch back to the original PulseLoop UI.

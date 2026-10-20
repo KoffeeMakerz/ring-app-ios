@@ -4,11 +4,10 @@ import UserNotifications
 
 /// Plans reminder times and delivers them.
 ///
-/// Delivery paths (see the implementation plan):
-/// 1. **Ring-stored alarms** (main path, phone can be locked): write the day's times into the ring's
-///    alarm slots when connected. `RingAlarmWriter` is the hook; per-family encoders are Phase 0/4 work.
-/// 2. **Phone notification** with the cue prompt — always scheduled, so a reminder is never lost.
-/// 3. **Full feeling touch** played by the app when it is awake at the cue time.
+/// Delivery: at each time the **app sends the touch to the ring** (the experience's whole sequence,
+/// each feeling's touch ≥4 s apart). On iPhone the app can only do that when iOS lets it run
+/// (foreground, or woken by Bluetooth activity from the ring), so a cue can land a few minutes off.
+/// A **phone notification** with the cue prompt is always scheduled as well, so a reminder is never lost.
 @MainActor
 final class ReminderScheduler {
     static let notificationCategory = "emotion.cue"
@@ -17,6 +16,10 @@ final class ReminderScheduler {
     static func plannedTimes(for rule: ReminderRule, on day: Date, profile: EmotionProfile, calendar: Calendar = .current) -> [Date] {
         let startOfDay = calendar.startOfDay(for: day)
         if rule.weekdaysOnly, calendar.isDateInWeekend(day) { return [] }
+        if !rule.randomTimes, rule.fixedDays.count == 7 {
+            let mondayFirst = (calendar.component(.weekday, from: day) + 5) % 7
+            if !rule.fixedDays[mondayFirst] { return [] }
+        }
         func allowed(_ minute: Int) -> Bool {
             let qs = profile.quietStartMinutes, qe = profile.quietEndMinutes
             let inQuiet = qs > qe ? (minute >= qs || minute < qe) : (minute >= qs && minute < qe)
@@ -36,7 +39,8 @@ final class ReminderScheduler {
         } else {
             minutes = rule.fixedMinutes
         }
-        return minutes.filter(allowed).sorted().compactMap {
+        // Set times are exactly what the person chose; quiet hours only shape spread reminders.
+        return minutes.filter { !rule.randomTimes || allowed($0) }.sorted().compactMap {
             calendar.date(byAdding: .minute, value: $0, to: startOfDay)
         }
     }
@@ -63,24 +67,42 @@ final class ReminderScheduler {
         if profile.remindersPaused, let until = profile.pausedUntil {
             planned = planned.filter { $0.1 > until }
         }
-        for (rule, date) in planned { context.insert(ReminderEvent(ruleID: rule.id, feeling: rule.feeling, at: date)) }
+        for (rule, date) in planned {
+            context.insert(ReminderEvent(ruleID: rule.id, feeling: rule.feeling, at: date, experienceID: rule.experienceID))
+        }
         try? context.save()
 
-        scheduleNotifications(planned.map { ($0.0.feeling, $0.1) })
-        RingAlarmWriter.shared.write(planned.map { ($0.0.feeling, $0.1) })
+        let experiences = (try? context.fetch(FetchDescriptor<Experience>())) ?? []
+        scheduleNotifications(planned.map { rule, date in
+            CueItem(feeling: rule.feeling, date: date, experience: experiences.first { $0.id == rule.experienceID })
+        })
     }
 
-    private static func scheduleNotifications(_ items: [(Feeling, Date)]) {
+    struct CueItem {
+        let feeling: Feeling
+        let date: Date
+        let experience: Experience?
+    }
+
+    private static func scheduleNotifications(_ items: [CueItem]) {
+        let payload: [(title: String, body: String, info: [String: String], date: Date)] = items.prefix(60).map { item -> (title: String, body: String, info: [String: String], date: Date) in
+            if let exp = item.experience {
+                let arc = exp.feelings.map { $0.name.lowercased() }.joined(separator: ", then ")
+                let picture = exp.visionPoints.first.map { "Picture it: \($0). " } ?? ""
+                return (exp.title, "\(picture)Feel \(arc).", ["feeling": item.feeling.rawValue, "experience": exp.id.uuidString], item.date)
+            }
+            return ("\(item.feeling.name) cue", item.feeling.cuePrompt, ["feeling": item.feeling.rawValue], item.date)
+        }
         let center = UNUserNotificationCenter.current()
         center.getPendingNotificationRequests { requests in
             let ours = requests.filter { $0.identifier.hasPrefix("emotion.cue.") }.map(\.identifier)
             center.removePendingNotificationRequests(withIdentifiers: ours)
-            for (feeling, date) in items.prefix(60) {
+            for (title, body, info, date) in payload {
                 let content = UNMutableNotificationContent()
-                content.title = "\(feeling.name) cue"
-                content.body = feeling.cuePrompt
+                content.title = title
+                content.body = body
                 content.categoryIdentifier = notificationCategory
-                content.userInfo = ["feeling": feeling.rawValue]
+                content.userInfo = info
                 let comps = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: date)
                 let trigger = UNCalendarNotificationTrigger(dateMatching: comps, repeats: false)
                 center.add(UNNotificationRequest(identifier: "emotion.cue.\(Int(date.timeIntervalSince1970))", content: content, trigger: trigger))
@@ -93,12 +115,3 @@ final class ReminderScheduler {
     }
 }
 
-/// Writes upcoming reminders into the ring's own alarm slots so they fire with the phone locked.
-/// Per-family encoders (Colmi `0x23`, RWfit key `0x02/0x10`) land in Phase 0/4; until then this
-/// records the intent so the UI can show the delivery path.
-@MainActor
-final class RingAlarmWriter {
-    static let shared = RingAlarmWriter()
-    private(set) var lastWritten: [(Feeling, Date)] = []
-    func write(_ items: [(Feeling, Date)]) { lastWritten = items }
-}
