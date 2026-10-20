@@ -128,7 +128,9 @@ Rules:
 
 ## Calm cue — design and how to test (2026-10-20, iOS)
 
-Commit `2a6eb43` (iOS). Android has the calm images only, because meditation and reminders aren't ported yet.
+Commits `2a6eb43` (iOS) and `5820a31` (Android).
+
+**Android version.** Android has the same rules. It checks when ring data is saved, when the app opens, and in the 30-min background ring sync. A Meditate tab offers full journey, deep relax, coherence and calm breath, with the calm images; live heart coherence isn't ported yet. Calm cue lives under Ring tab → Calm cue when tense. The notification opens the calm breath.
 
 **What it does.** The app checks on every wake: ring data, app open, notification, or background refresh, at most once a minute. When the rules below hold, the ring plays the **Slow down** touch: three soft hums with lengthening gaps, `[800, 1200, 800, 1800, 800]` ms. A notification also says "Feeling tense? … breathe in for 4, out for 7". Tapping it opens **Calm breath**: a 99 s session at 4 in / 7 out, with the ring tapping each in-breath and calm images behind it.
 
