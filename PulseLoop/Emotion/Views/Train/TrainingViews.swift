@@ -185,6 +185,7 @@ struct TrainingSessionView: View {
     @State private var settleLeft = 60
     @State private var rating = 3
     @State private var comfort = "right"
+    @State private var immersive = false
 
     var feeling: Feeling { request.feeling }
 
@@ -256,48 +257,49 @@ struct TrainingSessionView: View {
     private func feelView(_ p: ExperiencePlayback) -> some View {
         let now = p.currentFeeling
         let multi = p.parts.count > 1
-        return ZStack(alignment: .bottom) {
-            SlideshowView(experience: experience, index: p.slideIndex, fallback: now, showLabel: false)
-                .ignoresSafeArea()
-            VStack(alignment: .leading, spacing: 0) {
-                HStack {
-                    Button { close(finished: false) } label: { Image(systemName: "xmark").frame(width: 44, height: 44).background(EColor.ground.opacity(0.8), in: Circle()) }
-                        .accessibilityLabel("End session")
-                    Spacer()
-                    Text(multi ? "Part \(p.currentPart.index + 1) of \(p.parts.count) · \(now.name)" : "Step 2 · Feel it")
-                        .font(EFont.body(13, .semibold)).padding(.horizontal, 14).padding(.vertical, 8).background(EColor.ground.opacity(0.85), in: Capsule())
-                    Spacer()
-                    Color.clear.frame(width: 44, height: 44)
-                }
-                if multi {
-                    HStack(spacing: 6) {
-                        ForEach(p.parts) { part in
-                            GeometryReader { geo in
-                                ZStack(alignment: .leading) {
-                                    Capsule().fill(EColor.ground.opacity(0.8))
-                                    Capsule().fill(part.feeling.color).frame(width: geo.size.width * p.fraction(of: part))
-                                }
-                            }
-                            .frame(height: 4)
+        return VStack(spacing: 0) {
+            PlayerStage(experience: experience, index: p.slideIndex, fallback: now, immersive: $immersive, cueFeeling: p.isInCue ? now : nil) {
+                VStack(spacing: 12) {
+                    HStack {
+                        PlayerBarButton(icon: "xmark", label: "End session") { close(finished: false) }
+                        Spacer()
+                        Text(multi ? "Part \(p.currentPart.index + 1) of \(p.parts.count) · \(now.name)" : "Step 2 · Feel it")
+                            .font(EFont.body(13, .semibold)).padding(.horizontal, 14).padding(.vertical, 8).background(EColor.ground.opacity(0.85), in: Capsule())
+                        Spacer()
+                        PlayerBarButton(icon: "arrow.up.left.and.arrow.down.right", label: "Full screen image") {
+                            withAnimation(.easeInOut(duration: 0.3)) { immersive = true }
                         }
                     }
-                    .padding(.top, 12)
-                    .accessibilityHidden(true)
-                }
-                Spacer()
-                if experience != nil {
-                    HStack(spacing: 8) {
-                        Circle().fill(now.color).frame(width: 8, height: 8)
-                        Text(now.name).font(EFont.body(13, .bold)).foregroundStyle(now.color)
+                    if multi {
+                        HStack(spacing: 6) {
+                            ForEach(p.parts) { part in
+                                GeometryReader { geo in
+                                    ZStack(alignment: .leading) {
+                                        Capsule().fill(EColor.ground.opacity(0.8))
+                                        Capsule().fill(part.feeling.color).frame(width: geo.size.width * p.fraction(of: part))
+                                    }
+                                }
+                                .frame(height: 4)
+                            }
+                        }
+                        .accessibilityHidden(true)
                     }
-                    .padding(.horizontal, 12).frame(height: 30).background(EColor.ground.opacity(0.9), in: Capsule())
-                    .padding(.bottom, 10)
                 }
-                Text(experience != nil ? now.experiencePrompt : feeling.trainingPrompt)
-                    .font(EFont.display(25, .medium)).padding(.horizontal, 4).padding(.bottom, 20)
-                    .shadow(color: .black.opacity(0.5), radius: 6)
+                .padding(.horizontal, 16).padding(.top, 4)
+            }
+            if !immersive {
+                VStack(alignment: .leading, spacing: 14) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        if experience != nil {
+                            HStack(spacing: 8) {
+                                Circle().fill(now.color).frame(width: 8, height: 8)
+                                Text(now.name).font(EFont.body(13, .bold)).foregroundStyle(now.color)
+                            }
+                        }
+                        Text(experience != nil ? now.experiencePrompt : feeling.trainingPrompt)
+                            .font(EFont.display(20, .medium)).fixedSize(horizontal: false, vertical: true)
+                    }
                     .animation(.easeInOut, value: now)
-                VStack(alignment: .leading, spacing: 18) {
                     HStack(spacing: 14) {
                         TouchGlyph(pattern: p.touch, color: now.color, scale: 0.02, height: 12, maxWidth: 64)
                             .opacity(p.isInCue ? 1 : 0.5)
@@ -308,7 +310,7 @@ struct TrainingSessionView: View {
                                 .font(EFont.body(13)).foregroundStyle(EColor.textSecondary)
                         }
                     }
-                    .padding(14).frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(12).frame(maxWidth: .infinity, alignment: .leading)
                     .eCard(radius: 18)
                     .overlay(RoundedRectangle(cornerRadius: 18).stroke(p.isInCue ? now.color : .clear, lineWidth: 1.5))
                     CueTimeline(playback: p, color: now.color)
@@ -336,18 +338,18 @@ struct TrainingSessionView: View {
                         Spacer()
                         circleButton("dot.radiowaves.left.and.right", "Replay ring cue now") { p.playCueNow() }
                     }
-                    Button("Finish and check in") { p.pause(); stage = .reflect; services.haptics.play(closingTouch) }
+                    Button("Finish and check in") { p.pause(); immersive = false; stage = .reflect; services.haptics.play(closingTouch) }
                         .buttonStyle(TextLinkButtonStyle()).frame(maxWidth: .infinity)
                 }
-                .padding(20)
-                .background(EColor.ground, in: UnevenRoundedRectangle(topLeadingRadius: 28, topTrailingRadius: 28))
-                .padding(.horizontal, -20)
+                .padding(.horizontal, 20).padding(.top, 16).padding(.bottom, 4)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
             }
-            .padding(.horizontal, 20)
         }
         .foregroundStyle(EColor.text)
         .background(EColor.ground)
-        .onChange(of: p.progress >= 1) { _, done in if done { stage = .reflect; services.haptics.play(closingTouch) } }
+        .statusBarHidden(immersive)
+        .persistentSystemOverlays(immersive ? .hidden : .automatic)
+        .onChange(of: p.progress >= 1) { _, done in if done { immersive = false; stage = .reflect; services.haptics.play(closingTouch) } }
     }
 
     private func circleButton(_ icon: String, _ label: String, filled: Bool = true, action: @escaping () -> Void) -> some View {

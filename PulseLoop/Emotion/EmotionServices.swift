@@ -29,7 +29,7 @@ final class EmotionServices {
     func playback(for experience: Experience) -> ExperiencePlayback {
         let custom = experience.customTouchData == nil ? nil : experience.touch
         let p = ExperiencePlayback(track: experience.track, feelings: experience.feelings, haptics: haptics, singleTouchOverride: custom)
-        p.slideCount = max(1, experience.photoIdentifiers.count > 0 ? experience.photoIdentifiers.count : 6)
+        p.slideCount = max(1, experience.slides.isEmpty ? 6 : experience.slides.count)
         p.autoCues = experience.cueAuto
         return p
     }

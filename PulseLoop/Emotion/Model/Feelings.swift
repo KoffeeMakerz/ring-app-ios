@@ -336,10 +336,10 @@ struct ImageSet: Identifiable, Hashable {
         .init(id: "shores", name: "Calm shores", feeling: .calm, prefix: "photo", count: 2),
     ]
 
-    /// App images for a slideshow: only the set the user picked for this experience (none otherwise).
-    static func images(for experience: Experience?) -> [String] {
-        guard let id = experience?.imageSetID, let set = all.first(where: { $0.id == id }) else { return [] }
-        return set.imageNames
+    /// Sets that fit an arc first (in arc order), then the rest.
+    static func ordered(for feelings: [Feeling]) -> (suggested: [ImageSet], more: [ImageSet]) {
+        let suggested = feelings.flatMap { f in all.filter { $0.feeling == f } }
+        return (suggested, all.filter { !suggested.contains($0) })
     }
 }
 

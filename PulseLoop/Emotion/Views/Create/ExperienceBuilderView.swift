@@ -134,7 +134,7 @@ struct ExperienceBuilderView: View {
         .onDisappear { preview?.stop() }
         .onChange(of: track) { _, _ in preview?.stop(); preview = nil }
         .sheet(isPresented: $showTrackPicker) { TrackPickerSheet(selected: $track) }
-        .sheet(isPresented: $showImages) { ImagesPickerView(refs: $imageRefs, feeling: arc.first ?? .gratitude) }
+        .sheet(isPresented: $showImages) { ImagesPickerView(refs: $imageRefs, feelings: arc.isEmpty ? [.gratitude] : arc) }
     }
 
     // MARK: Arc
@@ -199,12 +199,7 @@ struct ExperienceBuilderView: View {
         .overlay(RoundedRectangle(cornerRadius: 18).stroke(EColor.line))
     }
 
-    private var imagesLabel: String {
-        let photos = imageRefs.filter { $0.hasPrefix("photo:") }.count
-        if photos > 0 { return "\(photos) of your photos" }
-        if let id = imageRefs.first(where: { $0.hasPrefix("app:") })?.dropFirst(4), let set = ImageSet.all.first(where: { $0.id == String(id) }) { return set.name }
-        return "None yet"
-    }
+    private var imagesLabel: String { SlideRef.label(imageRefs) }
 
     private var previewCard: some View {
         let draft = draftExperience()
@@ -268,13 +263,16 @@ struct ExperienceBuilderView: View {
             points = e.visionPoints.isEmpty ? [""] : e.visionPoints
             arc = e.feelings
             track = e.track
-            imageRefs = e.imageRefs
+            imageRefs = SlideRef.normalized(e.imageRefs)
             cueAuto = e.cueAuto
         } else if let t = VisionTemplate.all.first(where: { $0.id == templateID }) {
             title = t.title
             points = t.points
             arc = t.feelings
             track = t.track
+            // Start the slideshow with images that fit the template; the user can add or remove any.
+            let starter = ["home": "home", "money": "abundance", "love": "together", "business": "growth", "health": "shores"][t.id]
+            if let set = ImageSet.all.first(where: { $0.id == starter }) { imageRefs = set.imageNames.map { "img:\($0)" } }
         } else {
             arc = [.joy, .gratitude]
             track = MusicTrack.default(for: .joy)
@@ -338,78 +336,241 @@ struct SongPartsBar: View {
 
 // MARK: 3.4a Images
 
+/// Build the slideshow one image at a time: tap app images to add or remove them, add your own photos
+/// (appended, never replacing), drag thumbnails to reorder.
 struct ImagesPickerView: View {
     @Binding var refs: [String]
-    let feeling: Feeling
+    let feelings: [Feeling]
     @Environment(\.dismiss) private var dismiss
-    @State private var segment = 1
+    @State private var segment = 0
     @State private var pickerItems: [PhotosPickerItem] = []
+    @State private var importing = 0
+    @State private var failed = 0
 
-    private var photoIDs: [String] { refs.compactMap { $0.hasPrefix("photo:") ? String($0.dropFirst(6)) : nil } }
+    private var isFull: Bool { refs.count >= SlideRef.maxCount }
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 16) {
+            VStack(spacing: 14) {
+                selectionStrip
                 Picker("Source", selection: $segment) { Text("App images").tag(0); Text("Your photos").tag(1) }.pickerStyle(.segmented)
-                if segment == 0 {
-                    ScrollView {
-                        Text("Curated sets that match each feeling").font(EFont.body(13)).foregroundStyle(EColor.textSecondary).frame(maxWidth: .infinity, alignment: .leading)
-                        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-                            ForEach(ImageSet.all) { set in
-                                let selected = refs.contains("app:\(set.id)")
-                                Button { refs = ["app:\(set.id)"] } label: {
-                                    VStack(alignment: .leading, spacing: 8) {
-                                        LazyVGrid(columns: [GridItem(.flexible(), spacing: 3), GridItem(.flexible(), spacing: 3)], spacing: 3) {
-                                            ForEach(0..<4, id: \.self) { i in Color.clear.frame(height: 46).overlay(Image(set.imageNames[i % set.count]).resizable().scaledToFill()).clipped() }
-                                        }
-                                        .clipShape(RoundedRectangle(cornerRadius: 10))
-                                        Text(set.name).font(EFont.body(14, .bold))
-                                        Text("\(set.feeling.name) · \(set.count)").font(EFont.body(12)).foregroundStyle(EColor.textSecondary)
-                                    }
-                                    .padding(8).eCard(radius: 16)
-                                    .overlay(RoundedRectangle(cornerRadius: 16).stroke(selected ? EColor.accent : .clear, lineWidth: 2))
-                                }
-                                .buttonStyle(.plain)
-                            }
-                        }
-                    }
-                } else {
-                    VStack(alignment: .leading, spacing: 12) {
-                        PhotosPicker(selection: $pickerItems, maxSelectionCount: 20, selectionBehavior: .ordered, matching: .images, photoLibrary: .shared()) {
-                            Label(photoIDs.isEmpty ? "Choose photos" : "Change photos (\(photoIDs.count) selected)", systemImage: "photo.on.rectangle")
-                        }
-                        .buttonStyle(SecondaryButtonStyle())
-                        Text("Tap photos in the order you want them to appear.").font(EFont.body(13)).foregroundStyle(EColor.textSecondary)
-                        ScrollView {
-                            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: 4), spacing: 4) {
-                                ForEach(Array(photoIDs.enumerated()), id: \.offset) { i, _ in
-                                    ZStack(alignment: .topTrailing) {
-                                        SlideTile(experience: previewExperience, index: i).aspectRatio(1, contentMode: .fill).clipShape(RoundedRectangle(cornerRadius: 6))
-                                        Text("\(i + 1)").font(EFont.body(13, .bold)).foregroundStyle(EColor.onAccent).frame(width: 24, height: 24).background(EColor.accent, in: Circle()).padding(6)
-                                    }
-                                }
-                            }
-                        }
-                        InfoNote(icon: "lock", text: "Your photos never leave this phone. We only remember which ones you picked.")
-                    }
-                }
-                Spacer(minLength: 0)
-                Button("Use these") { dismiss() }.buttonStyle(PrimaryButtonStyle())
+                if segment == 0 { appImages } else { yourPhotos }
+                Button(refs.isEmpty ? "Done" : "Use \(refs.count) image\(refs.count == 1 ? "" : "s")") { dismiss() }
+                    .buttonStyle(PrimaryButtonStyle())
             }
-            .padding(20)
+            .padding(.horizontal, 20).padding(.vertical, 12)
             .emotionScreen()
             .navigationTitle("Images").navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() } } }
-            .onChange(of: pickerItems) { _, items in
-                let ids = items.compactMap(\.itemIdentifier)
-                refs = ids.map { "photo:\($0)" }
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() } }
+                if !refs.isEmpty { ToolbarItem(placement: .primaryAction) { Button("Clear") { refs = [] } } }
+            }
+            .onAppear { refs = SlideRef.normalized(refs) }
+            .onChange(of: pickerItems) { _, items in importPhotos(items) }
+        }
+    }
+
+    // MARK: Current slideshow
+
+    private var selectionStrip: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("Your slideshow").font(EFont.body(15, .bold))
+                Spacer()
+                Text("\(refs.count) of \(SlideRef.maxCount)").font(EFont.body(12)).foregroundStyle(EColor.textSecondary)
+            }
+            if refs.isEmpty {
+                Text("Nothing yet. Tap images below to add them one by one.")
+                    .font(EFont.body(13)).foregroundStyle(EColor.textSecondary)
+                    .frame(maxWidth: .infinity, minHeight: 76)
+                    .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(EColor.line, style: StrokeStyle(lineWidth: 1.5, dash: [5])))
+            } else {
+                ScrollViewReader { proxy in
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            ForEach(Array(refs.enumerated()), id: \.element) { i, ref in
+                                if let slide = SlideRef(ref: ref) { thumb(slide, ref: ref, number: i + 1).id(ref) }
+                            }
+                        }
+                        .padding(.vertical, 2)
+                    }
+                    .onChange(of: refs.count) { old, new in
+                        if new > old, let last = refs.last { withAnimation { proxy.scrollTo(last, anchor: .trailing) } }
+                    }
+                }
+                .frame(height: 80)
+                Text("Drag to reorder · hold for more").font(EFont.body(12)).foregroundStyle(EColor.textMuted)
             }
         }
     }
 
-    private var previewExperience: Experience {
-        let e = Experience(feelings: [feeling])
-        e.imageRefs = refs
-        return e
+    private func thumb(_ slide: SlideRef, ref: String, number: Int) -> some View {
+        SlideImage(slide: slide)
+            .frame(width: 66, height: 76)
+            .clipShape(RoundedRectangle(cornerRadius: 10))
+            .overlay(alignment: .bottomLeading) {
+                Text("\(number)").font(EFont.body(11, .bold)).foregroundStyle(EColor.onAccent)
+                    .frame(minWidth: 18, minHeight: 18).background(EColor.accent, in: Circle()).padding(4)
+            }
+            .overlay(alignment: .topTrailing) {
+                Button { remove(ref) } label: {
+                    Image(systemName: "xmark").font(.system(size: 10, weight: .bold)).foregroundStyle(.white)
+                        .frame(width: 20, height: 20).background(.black.opacity(0.65), in: Circle())
+                        .frame(width: 32, height: 32).contentShape(Rectangle())
+                }
+                .accessibilityLabel("Remove image \(number)")
+            }
+            .draggable(ref)
+            .dropDestination(for: String.self) { items, _ in move(items.first, onto: ref) }
+            .contextMenu {
+                Button("Move earlier", systemImage: "arrow.left") { step(ref, by: -1) }.disabled(number == 1)
+                Button("Move later", systemImage: "arrow.right") { step(ref, by: 1) }.disabled(number == refs.count)
+                Button("Remove", systemImage: "trash", role: .destructive) { remove(ref) }
+            }
+            .accessibilityElement(children: .contain)
+            .accessibilityLabel("Image \(number) of \(refs.count)")
+    }
+
+    // MARK: App images
+
+    private var appImages: some View {
+        let sets = ImageSet.ordered(for: feelings)
+        return ScrollView {
+            LazyVStack(alignment: .leading, spacing: 18) {
+                if !sets.suggested.isEmpty {
+                    sectionHeader("Suggested for \(feelings.map(\.name).joined(separator: " → "))")
+                    ForEach(sets.suggested) { setBlock($0) }
+                }
+                sectionHeader(sets.suggested.isEmpty ? "All images" : "More images")
+                ForEach(sets.more) { setBlock($0) }
+            }
+            .padding(.bottom, 8)
+        }
+    }
+
+    private func sectionHeader(_ text: String) -> some View {
+        Text(text.uppercased()).font(EFont.body(12, .bold)).tracking(1).foregroundStyle(EColor.textMuted)
+    }
+
+    private func setBlock(_ set: ImageSet) -> some View {
+        let all = set.imageNames.map { "img:\($0)" }
+        let allIn = all.allSatisfy { refs.contains($0) }
+        return VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                Text(set.name).font(EFont.body(15, .bold))
+                Circle().fill(set.feeling.color).frame(width: 7, height: 7).accessibilityHidden(true)
+                Text(set.feeling.name).font(EFont.body(12)).foregroundStyle(EColor.textSecondary)
+                Spacer()
+                Button(allIn ? "Remove all" : "Add all") {
+                    if allIn { refs.removeAll { all.contains($0) } }
+                    else { for r in all where !refs.contains(r) && !isFull { refs.append(r) } }
+                }
+                .font(EFont.body(13, .semibold)).foregroundStyle(EColor.accent)
+                .disabled(!allIn && isFull)
+            }
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: 3), spacing: 6) {
+                ForEach(Array(set.imageNames.enumerated()), id: \.element) { n, name in
+                    let ref = "img:\(name)"
+                    let pos = refs.firstIndex(of: ref)
+                    Button { toggle(ref) } label: {
+                        Color.clear.frame(height: 100)
+                            .overlay(Image(name).resizable().scaledToFill())
+                            .clipShape(RoundedRectangle(cornerRadius: 10))
+                            .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(pos != nil ? EColor.accent : .clear, lineWidth: 2.5))
+                            .overlay(alignment: .topTrailing) {
+                                Group {
+                                    if let pos {
+                                        Text("\(pos + 1)").font(EFont.body(12, .bold)).foregroundStyle(EColor.onAccent)
+                                            .frame(width: 24, height: 24).background(EColor.accent, in: Circle())
+                                    } else {
+                                        Image(systemName: "plus").font(.system(size: 11, weight: .bold)).foregroundStyle(.white)
+                                            .frame(width: 24, height: 24).background(.black.opacity(0.55), in: Circle())
+                                    }
+                                }
+                                .padding(6)
+                            }
+                            .opacity(pos == nil && isFull ? 0.4 : 1)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("\(set.name), image \(n + 1)")
+                    .accessibilityValue(pos.map { "In slideshow, number \($0 + 1)" } ?? "Not added")
+                    .accessibilityHint(pos == nil ? "Adds it to the end" : "Removes it")
+                }
+            }
+        }
+    }
+
+    // MARK: Your photos
+
+    private var yourPhotos: some View {
+        let own = refs.compactMap(SlideRef.init(ref:)).filter(\.isOwnPhoto).count
+        return VStack(alignment: .leading, spacing: 12) {
+            PhotosPicker(selection: $pickerItems, maxSelectionCount: max(1, SlideRef.maxCount - refs.count), selectionBehavior: .ordered, matching: .images) {
+                Label(own == 0 ? "Add photos" : "Add more photos", systemImage: "plus")
+            }
+            .buttonStyle(SecondaryButtonStyle())
+            .disabled(isFull || importing > 0)
+            if importing > 0 {
+                HStack(spacing: 10) { ProgressView(); Text("Adding \(importing) photo\(importing == 1 ? "" : "s")…").font(EFont.body(14)) }
+            }
+            if failed > 0 {
+                Text("\(failed) photo\(failed == 1 ? "" : "s") couldn't be added.").font(EFont.body(13)).foregroundStyle(EColor.textSecondary)
+            }
+            if isFull {
+                Text("Your slideshow is full (\(SlideRef.maxCount)). Remove one to add another.").font(EFont.body(13)).foregroundStyle(EColor.textSecondary)
+            }
+            Text(own == 0 ? "Pick one or several. They go to the end of your slideshow, and you can add more any time."
+                          : "\(own) of your photos in the slideshow. New ones go to the end.")
+                .font(EFont.body(13)).foregroundStyle(EColor.textSecondary)
+            InfoNote(icon: "lock", text: "We keep a private copy on this phone, so the slideshow still works if you delete the original. Nothing is uploaded.")
+            Spacer(minLength: 0)
+        }
+        .frame(maxHeight: .infinity, alignment: .top)
+    }
+
+    // MARK: Editing
+
+    private func toggle(_ ref: String) {
+        if let i = refs.firstIndex(of: ref) { refs.remove(at: i) }
+        else if !isFull { refs.append(ref) }
+    }
+
+    private func remove(_ ref: String) {
+        withAnimation { refs.removeAll { $0 == ref } }
+    }
+
+    private func step(_ ref: String, by delta: Int) {
+        guard let i = refs.firstIndex(of: ref) else { return }
+        let j = i + delta
+        guard refs.indices.contains(j) else { return }
+        withAnimation { refs.swapAt(i, j) }
+    }
+
+    /// Drop `dragged` onto `target`: moving forward lands after it, moving back lands before it.
+    private func move(_ dragged: String?, onto target: String) -> Bool {
+        guard let dragged, dragged != target, let from = refs.firstIndex(of: dragged), let targetIndex = refs.firstIndex(of: target) else { return false }
+        withAnimation {
+            refs.remove(at: from)
+            let to = refs.firstIndex(of: target) ?? refs.endIndex
+            refs.insert(dragged, at: from < targetIndex ? min(to + 1, refs.endIndex) : to)
+        }
+        return true
+    }
+
+    private func importPhotos(_ items: [PhotosPickerItem]) {
+        guard !items.isEmpty else { return }
+        pickerItems = []
+        failed = 0
+        importing += items.count
+        Task {
+            for item in items {
+                var name: String?
+                if let data = try? await item.loadTransferable(type: Data.self) {
+                    name = await Task.detached(priority: .userInitiated) { ExperienceImageStore.save(data) }.value
+                }
+                importing -= 1
+                if let name, refs.count < SlideRef.maxCount { refs.append("file:\(name)") } else { failed += 1 }
+            }
+        }
     }
 }

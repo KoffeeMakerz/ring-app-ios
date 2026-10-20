@@ -183,25 +183,13 @@ struct SlideTile: View {
     let experience: Experience?
     let index: Int
     var fallback: Feeling = .gratitude
-    @State private var image: UIImage?
 
     var body: some View {
-        let ids = experience?.photoIdentifiers ?? []
-        let appImages = ImageSet.images(for: experience)
-        GeometryReader { geo in
-            ZStack {
-                if let image {
-                    Image(uiImage: image).resizable().scaledToFill().frame(width: geo.size.width, height: geo.size.height).clipped()
-                } else if ids.isEmpty, !appImages.isEmpty {
-                    Image(appImages[index % appImages.count]).resizable().scaledToFill().frame(width: geo.size.width, height: geo.size.height).clipped()
-                } else {
-                    ImagePlaceholder(color: Color.placeholderTones[(index * 3 + (Feeling.allCases.firstIndex(of: experience?.feeling ?? fallback) ?? 0)) % 8])
-                }
-            }
-            .task(id: ids.isEmpty ? "" : ids[index % ids.count]) {
-                guard !ids.isEmpty else { image = nil; return }
-                image = await PhotoLoader.shared.image(for: ids[index % ids.count], size: geo.size)
-            }
+        let slides = experience?.slides ?? []
+        if slides.isEmpty {
+            ImagePlaceholder(color: Color.placeholderTones[(index * 3 + (Feeling.allCases.firstIndex(of: experience?.feeling ?? fallback) ?? 0)) % 8])
+        } else {
+            SlideImage(slide: slides[index % slides.count])
         }
     }
 }
@@ -210,17 +198,12 @@ struct SlideshowView: View {
     let experience: Experience?
     let index: Int
     let fallback: Feeling
-    /// Placeholder caption for app images; off where text sits over the slide.
+    /// Kept for call sites; slides carry no caption now that real images exist.
     var showLabel = true
     var body: some View {
-        let ids = experience?.photoIdentifiers ?? []
         ZStack {
             SlideTile(experience: experience, index: index, fallback: fallback).id(index)
                 .transition(.opacity)
-            if ids.isEmpty && showLabel && ImageSet.images(for: experience).isEmpty {
-                Text("[\(experience?.imageSetID.flatMap { id in ImageSet.all.first { $0.id == id }?.name } ?? "App image") \(index + 1)]".uppercased())
-                    .font(EFont.body(12, .medium)).tracking(1).foregroundStyle(Color(hex: "#C9AE86"))
-            }
         }
         .animation(.easeInOut(duration: 1.2), value: index)
     }
@@ -235,16 +218,14 @@ struct ExperiencePlayerView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var playback: ExperiencePlayback?
     @State private var showVision = false
+    @State private var immersive = false
 
     var body: some View {
-        ZStack(alignment: .bottom) {
-            SlideshowView(experience: experience, index: playback?.slideIndex ?? 0, fallback: experience.feeling).ignoresSafeArea()
-            VStack {
-                HStack {
-                    Button { playback?.stop(); dismiss() } label: {
-                        Image(systemName: "xmark").frame(width: 44, height: 44).background(EColor.ground.opacity(0.85), in: Circle())
-                    }
-                    .accessibilityLabel("Close")
+        VStack(spacing: 0) {
+            PlayerStage(experience: experience, index: playback?.slideIndex ?? 0, fallback: experience.feeling,
+                        immersive: $immersive, cueFeeling: playback?.isInCue == true ? playback?.currentFeeling : nil) {
+                HStack(spacing: 8) {
+                    PlayerBarButton(icon: "xmark", label: "Close") { playback?.stop(); dismiss() }
                     Spacer()
                     if let p = playback, p.isInCue {
                         HStack(spacing: 8) {
@@ -254,54 +235,24 @@ struct ExperiencePlayerView: View {
                         .padding(.horizontal, 12).frame(height: 34).background(EColor.ground.opacity(0.85), in: Capsule())
                     }
                     Spacer()
+                    PlayerBarButton(icon: "arrow.up.left.and.arrow.down.right", label: "Full screen image") {
+                        withAnimation(.easeInOut(duration: 0.3)) { immersive = true }
+                    }
                     Button { showVision = true } label: {
                         Label("Vision", systemImage: "list.bullet").font(EFont.body(14, .bold))
                             .padding(.horizontal, 16).frame(height: 44).background(EColor.ground.opacity(0.85), in: Capsule())
                     }
                 }
-                .padding(.horizontal, 16)
-                Spacer()
+                .padding(.horizontal, 16).padding(.top, 4)
             }
-            if let p = playback {
-                VStack(alignment: .leading, spacing: 0) {
-                    Text(experience.title).font(EFont.display(22))
-                    Text("\(p.track.title) · now: \(p.currentFeeling.name)").font(EFont.body(13)).foregroundStyle(EColor.textSecondary).padding(.top, 2)
-                    if p.parts.count > 1 {
-                        HStack(spacing: 4) {
-                            ForEach(p.parts) { part in
-                                GeometryReader { geo in
-                                    ZStack(alignment: .leading) {
-                                        Capsule().fill(part.feeling.color.opacity(0.25))
-                                        Capsule().fill(part.feeling.color).frame(width: geo.size.width * p.fraction(of: part))
-                                    }
-                                }
-                                .frame(height: 4)
-                            }
-                        }
-                        .padding(.top, 12).accessibilityHidden(true)
-                    }
-                    ThinProgress(value: p.progress, color: EColor.text, height: 4).padding(.top, 16)
-                    HStack { Text(timeString(p.position)); Spacer(); Text(timeString(p.duration)) }.font(EFont.body(12)).foregroundStyle(EColor.textMuted).padding(.top, 4)
-                    HStack(spacing: 36) {
-                        Button { p.seek(by: -15) } label: { Image(systemName: "gobackward.15").font(.system(size: 22)).frame(width: 48, height: 48) }
-                            .accessibilityLabel("Back 15 seconds")
-                        Button { p.toggle() } label: {
-                            Image(systemName: p.isPlaying ? "pause.fill" : "play.fill").font(.system(size: 26)).foregroundStyle(EColor.onAccent)
-                                .frame(width: 72, height: 72).background(p.currentFeeling.color, in: Circle())
-                        }
-                        .accessibilityLabel(p.isPlaying ? "Pause" : "Play")
-                        Button { p.seek(by: 15) } label: { Image(systemName: "goforward.15").font(.system(size: 22)).frame(width: 48, height: 48) }
-                            .accessibilityLabel("Forward 15 seconds")
-                    }
-                    .frame(maxWidth: .infinity).padding(.top, 10)
-                }
-                .padding(.horizontal, 24).padding(.top, 20).padding(.bottom, 36)
-                .background(EColor.ground.opacity(0.94), in: UnevenRoundedRectangle(topLeadingRadius: 28, topTrailingRadius: 28))
-                .ignoresSafeArea(edges: .bottom)
+            if !immersive, let p = playback {
+                controls(p).transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
         .foregroundStyle(EColor.text)
         .background(EColor.ground)
+        .statusBarHidden(immersive)
+        .persistentSystemOverlays(immersive ? .hidden : .automatic)
         .onAppear {
             let p = services.playback(for: experience)
             playback = p
@@ -314,6 +265,42 @@ struct ExperiencePlayerView: View {
                 .presentationDetents([.medium, .large])
                 .presentationBackground(EColor.tabBar)
         }
+    }
+
+    private func controls(_ p: ExperiencePlayback) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(experience.title).font(EFont.display(22))
+            Text("\(p.track.title) · now: \(p.currentFeeling.name)").font(EFont.body(13)).foregroundStyle(EColor.textSecondary).padding(.top, 2)
+            if p.parts.count > 1 {
+                HStack(spacing: 4) {
+                    ForEach(p.parts) { part in
+                        GeometryReader { geo in
+                            ZStack(alignment: .leading) {
+                                Capsule().fill(part.feeling.color.opacity(0.25))
+                                Capsule().fill(part.feeling.color).frame(width: geo.size.width * p.fraction(of: part))
+                            }
+                        }
+                        .frame(height: 4)
+                    }
+                }
+                .padding(.top, 12).accessibilityHidden(true)
+            }
+            ThinProgress(value: p.progress, color: EColor.text, height: 4).padding(.top, 16)
+            HStack { Text(timeString(p.position)); Spacer(); Text(timeString(p.duration)) }.font(EFont.body(12)).foregroundStyle(EColor.textMuted).padding(.top, 4)
+            HStack(spacing: 36) {
+                Button { p.seek(by: -15) } label: { Image(systemName: "gobackward.15").font(.system(size: 22)).frame(width: 48, height: 48) }
+                    .accessibilityLabel("Back 15 seconds")
+                Button { p.toggle() } label: {
+                    Image(systemName: p.isPlaying ? "pause.fill" : "play.fill").font(.system(size: 26)).foregroundStyle(EColor.onAccent)
+                        .frame(width: 72, height: 72).background(p.currentFeeling.color, in: Circle())
+                }
+                .accessibilityLabel(p.isPlaying ? "Pause" : "Play")
+                Button { p.seek(by: 15) } label: { Image(systemName: "goforward.15").font(.system(size: 22)).frame(width: 48, height: 48) }
+                    .accessibilityLabel("Forward 15 seconds")
+            }
+            .frame(maxWidth: .infinity).padding(.top, 10)
+        }
+        .padding(.horizontal, 24).padding(.top, 18).padding(.bottom, 12)
     }
 }
 

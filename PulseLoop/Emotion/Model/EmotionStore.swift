@@ -49,7 +49,7 @@ final class Experience {
     /// The full ordered arc. Empty on experiences made before v2: then the arc is just `feelingRaw`.
     var feelingsRaw: [String] = []
     var trackID: String = ""
-    /// "app:<setID>" for a built-in set, or "photo:<PHAsset localIdentifier>" for device photos (never uploaded).
+    /// Ordered slideshow images, one ref per image (see `SlideRef`). Older data may hold "app:<setID>".
     var imageRefs: [String] = []
     var cueAuto: Bool = true
     /// Custom touch override (JSON of TouchPattern); nil = the feeling's own touch.
@@ -94,13 +94,9 @@ final class Experience {
         }
         set { customTouchData = newValue.id.hasPrefix("feeling.") ? nil : try? JSONEncoder().encode(newValue) }
     }
-    var photoIdentifiers: [String] { imageRefs.compactMap { $0.hasPrefix("photo:") ? String($0.dropFirst(6)) : nil } }
-    var imageSetID: String? { imageRefs.first { $0.hasPrefix("app:") }.map { String($0.dropFirst(4)) } }
-    var imagesLabel: String {
-        if !photoIdentifiers.isEmpty { return "\(photoIdentifiers.count) of your photos" }
-        if let set = ImageSet.all.first(where: { $0.id == imageSetID }) { return set.name }
-        return "No images"
-    }
+    /// The slideshow, in order (older whole-set refs expanded to single images).
+    var slides: [SlideRef] { SlideRef.expand(imageRefs) }
+    var imagesLabel: String { imageRefs.isEmpty ? "No images" : SlideRef.label(imageRefs) }
 }
 
 /// A user-made touch from the optional composer.
