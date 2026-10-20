@@ -25,12 +25,15 @@ struct TrainingRequest: Identifiable, Hashable {
 
 enum MeditationKind: String, Identifiable, CaseIterable {
     case journey, relax, coherence
+    /// Short session opened from a calm cue: 4 in / 7 out with the ring guiding each breath.
+    case calmBreath
     var id: String { rawValue }
     var title: String {
         switch self {
         case .journey: "Relax, find coherence, reflect"
         case .relax: "Deep relax"
         case .coherence: "Coherence"
+        case .calmBreath: "Calm breath"
         }
     }
     /// (phase name, seconds)
@@ -39,6 +42,7 @@ enum MeditationKind: String, Identifiable, CaseIterable {
         case .journey: [("Relax", 300), ("Coherence breathing", 480), ("Reflect", 120)]
         case .relax: [("Body scan", 600)]
         case .coherence: [("Coherence breathing", 300)]
+        case .calmBreath: [("Calm breathing", 99)]
         }
     }
     var totalSeconds: Int { phases.map(\.seconds).reduce(0, +) }
@@ -102,7 +106,8 @@ struct EmotionRootView: View {
             let router = self.router, services = self.services
             notificationBridge.install(
                 onCue: { feeling, expID in router.cue = CueRequest(feeling: feeling, eventID: nil, experienceID: expID) },
-                onDeliver: { _, _ in services.dispatcher?.check(.notification) })
+                onDeliver: { _, _ in services.dispatcher?.check(.notification) },
+                onCalm: { router.meditation = .calmBreath })
         }
         .onChange(of: scenePhase) { _, phase in
             switch phase {
@@ -136,11 +141,13 @@ struct EmotionRootView: View {
 final class CueNotificationBridge: NSObject, UNUserNotificationCenterDelegate {
     private var onCue: ((Feeling, UUID?) -> Void)?
     private var onDeliver: ((Feeling, UUID?) -> Void)?
+    private var onCalm: (() -> Void)?
     private weak var previous: UNUserNotificationCenterDelegate?
 
-    func install(onCue: @escaping (Feeling, UUID?) -> Void, onDeliver: @escaping (Feeling, UUID?) -> Void) {
+    func install(onCue: @escaping (Feeling, UUID?) -> Void, onDeliver: @escaping (Feeling, UUID?) -> Void, onCalm: @escaping () -> Void) {
         self.onCue = onCue
         self.onDeliver = onDeliver
+        self.onCalm = onCalm
         let center = UNUserNotificationCenter.current()
         if center.delegate !== self { previous = center.delegate; center.delegate = self }
     }
@@ -149,8 +156,11 @@ final class CueNotificationBridge: NSObject, UNUserNotificationCenterDelegate {
         let info = response.notification.request.content.userInfo
         let raw = info["feeling"] as? String
         let expID = (info["experience"] as? String).flatMap(UUID.init(uuidString:))
+        let calm = info["calm"] != nil
         Task { @MainActor in
-            if let raw, let feeling = Feeling(rawValue: raw) {
+            if calm {
+                self.onCalm?()
+            } else if let raw, let feeling = Feeling(rawValue: raw) {
                 self.onDeliver?(feeling, expID)
                 self.onCue?(feeling, expID)
             }

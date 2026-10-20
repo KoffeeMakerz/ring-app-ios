@@ -39,7 +39,7 @@ struct MeditateSelectView: View {
                             Text("Breathing pace").font(EFont.body(15, .semibold))
                             Spacer()
                             Menu {
-                                Button("4 in · 6 out (6/min)") { profile.breathInSeconds = 4; profile.breathOutSeconds = 6 }
+                                Button("4 in · 7 out (calming)") { profile.breathInSeconds = 4; profile.breathOutSeconds = 7 }
                                 Button("5 in · 5 out (6/min)") { profile.breathInSeconds = 5; profile.breathOutSeconds = 5 }
                                 Button("5.5 in · 5.5 out (5.5/min)") { profile.breathInSeconds = 5.5; profile.breathOutSeconds = 5.5 }
                             } label: {
@@ -125,8 +125,9 @@ struct MeditationSessionView: View {
     @State private var measuringHRV = false
 
     private var profile: EmotionProfile? { profiles.first }
-    private var inS: Double { profile?.breathInSeconds ?? 5 }
-    private var outS: Double { profile?.breathOutSeconds ?? 5 }
+    // The calm cue's short session always uses 4 in / 7 out.
+    private var inS: Double { kind == .calmBreath ? 4 : profile?.breathInSeconds ?? 4 }
+    private var outS: Double { kind == .calmBreath ? 7 : profile?.breathOutSeconds ?? 7 }
 
     private var phaseIndex: Int {
         var t = 0
@@ -138,7 +139,7 @@ struct MeditationSessionView: View {
         return Double(elapsed - before) / Double(kind.phases[phaseIndex].seconds)
     }
     private var phaseName: String { kind.phases[phaseIndex].name }
-    private var isBreathingPhase: Bool { phaseName.contains("Coherence") }
+    private var isBreathingPhase: Bool { phaseName.lowercased().contains("breathing") }
 
     var body: some View {
         Group { if finished { summary } else { session } }
@@ -166,7 +167,8 @@ struct MeditationSessionView: View {
             Spacer()
             ZStack {
                 Circle().stroke(Color(hex: "#22324D")).frame(width: 240, height: 240)
-                Circle().fill(Color(hex: "#1B3355")).frame(width: 190, height: 190)
+                Circle().fill(Color(hex: "#1B3355").opacity(0.6)).frame(width: 190, height: 190)
+                    .overlay(Circle().stroke(.white.opacity(0.18), lineWidth: 1))
                     .scaleEffect(isBreathingPhase ? (inhale ? 1.12 : 0.78) : 1)
                     .animation(.easeInOut(duration: inhale ? inS : outS), value: inhale)
                 VStack(spacing: 4) {
@@ -192,6 +194,7 @@ struct MeditationSessionView: View {
             .foregroundStyle(EColor.text)
         }
         .padding(.horizontal, 20).padding(.bottom, 24)
+        .background { CalmBackdrop(names: CalmImages.names(for: kind), index: elapsed / CalmImages.secondsPerImage) }
         .emotionScreen(EColor.calmGround)
         .task { await runClock() }
     }
@@ -448,5 +451,47 @@ struct Sparkline: Shape {
             i == 0 ? p.move(to: pt) : p.addLine(to: pt)
         }
         return p
+    }
+}
+
+/// Built-in calm illustrations (Assets.xcassets/Calm, mirrored in Android res/drawable-nodpi).
+/// Original images made in code; generator: docs/emotion-app/calm_images.py.
+enum CalmImages {
+    static let secondsPerImage = 20
+    static let all = ["calm_lake_02", "calm_monk_02", "calm_water_01", "calm_circles_01", "calm_mountains_01", "calm_waterfall_01",
+                      "calm_monk_01", "calm_stream_01", "calm_lake_01", "calm_circles_02", "calm_monk_03"]
+
+    static func names(for kind: MeditationKind) -> [String] {
+        switch kind {
+        case .relax: ["calm_lake_02", "calm_monk_02", "calm_water_01", "calm_mountains_01", "calm_stream_01", "calm_lake_01"]
+        case .coherence: ["calm_circles_01", "calm_waterfall_01", "calm_monk_01", "calm_circles_02", "calm_lake_01", "calm_monk_03"]
+        case .calmBreath: ["calm_monk_03", "calm_water_01", "calm_lake_02"]
+        case .journey: all
+        }
+    }
+}
+
+/// Slow, dimmed slideshow behind a meditation session.
+struct CalmBackdrop: View {
+    let names: [String]
+    let index: Int
+
+    var body: some View {
+        GeometryReader { geo in
+            ZStack {
+                if !names.isEmpty {
+                    Image(names[index % names.count]).resizable().scaledToFill()
+                        .frame(width: geo.size.width, height: geo.size.height).clipped()
+                        .id(index % names.count)
+                        .transition(.opacity)
+                }
+                // Keep text and the breath circle readable.
+                LinearGradient(colors: [EColor.calmGround.opacity(0.55), EColor.calmGround.opacity(0.25), EColor.calmGround.opacity(0.8)],
+                               startPoint: .top, endPoint: .bottom)
+            }
+            .animation(.easeInOut(duration: 2.5), value: index % max(1, names.count))
+        }
+        .ignoresSafeArea()
+        .accessibilityHidden(true)
     }
 }

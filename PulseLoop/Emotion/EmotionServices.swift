@@ -12,6 +12,7 @@ final class EmotionServices {
     let haptics: RingHapticsService
     let heart: LiveHeartRate
     private(set) var dispatcher: CueDispatcher?
+    private(set) var calm: CalmCueMonitor?
 
     init(client: RingBLEClient, coordinator: RingSyncCoordinator) {
         self.client = client
@@ -44,6 +45,7 @@ final class EmotionServices {
         guard dispatcher == nil else { return }
         let d = CueDispatcher(context: context, services: self)
         dispatcher = d
+        calm = CalmCueMonitor(context: context, services: self)
         d.start()
         ReminderBackgroundRefresh.register { [weak d] in
             ReminderScheduler.rebuild(context: context)

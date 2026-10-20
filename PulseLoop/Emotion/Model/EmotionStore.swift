@@ -20,9 +20,13 @@ final class EmotionProfile {
     var quietEndMinutes: Int = 8 * 60
     var ringGuidesBreath: Bool = true
     var liveHeartFeedback: Bool = true
-    var breathInSeconds: Double = 5
-    var breathOutSeconds: Double = 5
+    /// Calming default: in for 4, out for 7 (longer out-breath).
+    var breathInSeconds: Double = 4
+    var breathOutSeconds: Double = 7
     var calmCueEnabled: Bool = false
+    /// "elevated" (raised or high readings) or "high" (high only).
+    var calmCueSensitivity: String = "elevated"
+    var lastCalmCueAt: Date? = nil
     var statsHeart: Bool = true
     var statsSleep: Bool = false
     var statsActivity: Bool = false
@@ -206,7 +210,17 @@ enum EmotionSchema {
 extension ModelContext {
     /// The single profile row, created on first use.
     func emotionProfile() -> EmotionProfile {
-        if let existing = try? fetch(FetchDescriptor<EmotionProfile>()).first { return existing }
+        if let existing = try? fetch(FetchDescriptor<EmotionProfile>()).first {
+            // One-time move to the 4-in / 7-out default (earlier builds defaulted to 5/5 or 4/6).
+            if !UserDefaults.standard.bool(forKey: "emotion.breath47") {
+                UserDefaults.standard.set(true, forKey: "emotion.breath47")
+                existing.breathInSeconds = 4
+                existing.breathOutSeconds = 7
+                try? save()
+            }
+            return existing
+        }
+        UserDefaults.standard.set(true, forKey: "emotion.breath47")
         let profile = EmotionProfile()
         insert(profile)
         try? save()

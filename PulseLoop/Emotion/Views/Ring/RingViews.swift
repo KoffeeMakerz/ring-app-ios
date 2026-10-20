@@ -121,41 +121,132 @@ struct RingSettingsView: View {
 struct StressCueView: View {
     @Environment(\.modelContext) private var context
     @Environment(EmotionRouter.self) private var router
+    @Environment(EmotionServices.self) private var services
     @Query private var profiles: [EmotionProfile]
-    @Query private var records: [TrainingRecord]
 
     var body: some View {
-        let enabled = profiles.first?.calmCueEnabled ?? false
+        let profile = profiles.first
+        let enabled = profile?.calmCueEnabled ?? false
+        let baseline = services.calm?.baseline() ?? CalmCueMonitor.Baseline()
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
                 Text("BETA · OFF BY DEFAULT").font(EFont.label).tracking(1.2).foregroundStyle(Color(hex: "#B892FF"))
                 Text("A calm cue when you seem tense").font(EFont.display(30))
-                Text("When you're sitting still and your heart signals look tense compared with your normal, your ring plays the calm rhythm. It's a guess, so it will sometimes be wrong.")
+                Text("When you've been sitting still and your ring's readings look tense compared with your normal, your ring plays a slow-down touch and you get a 1½-minute breath: in for 4, out for 7. It's a guess, so it will sometimes be wrong.")
                     .font(EFont.body(15)).foregroundStyle(EColor.textSecondary)
+
+                if enabled {
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Text("Right now").font(EFont.body(15, .bold))
+                            Spacer()
+                            Button("Check now") { services.calm?.evaluate(trigger: "manual check", force: true) }
+                                .font(EFont.body(14, .semibold)).foregroundStyle(EColor.accent)
+                        }
+                        Text(services.calm?.lastAssessment ?? "Not checked yet").font(EFont.body(14)).foregroundStyle(EColor.textSecondary)
+                    }
+                    .padding(16).frame(maxWidth: .infinity, alignment: .leading).eCard()
+                }
+
                 VStack(alignment: .leading, spacing: 10) {
                     Text("Only when all of these are true").font(EFont.body(15, .bold))
-                    ForEach(["Still for at least 10 minutes", "No workout in the last 45 minutes", "A clear reading from the ring", "At most once every 2 hours"], id: \.self) { t in
+                    ForEach(["Still for \(Int(CalmCueMonitor.stillMinutes)) minutes, so a walk or workout never counts",
+                             "A fresh reading from the ring in the last \(Int(CalmCueMonitor.readingWindowMinutes)) minutes",
+                             "Stress score, heart rate or HRV clearly off your normal",
+                             "At most once every \(Int(CalmCueMonitor.cooldownHours)) hours, never in quiet hours"], id: \.self) { t in
                         Label(t, systemImage: "checkmark").font(EFont.body(14)).foregroundStyle(EColor.text)
                     }
                 }
                 .padding(16).frame(maxWidth: .infinity, alignment: .leading).eCard()
+
                 VStack(alignment: .leading, spacing: 10) {
-                    HStack { Text("Learning your normal").font(EFont.body(15, .bold)); Spacer(); Text("0 of 7 days").font(EFont.body(13)).foregroundStyle(EColor.textSecondary) }
-                    ThinProgress(value: 0, color: Color(hex: "#7FB2F0"))
                     HStack {
-                        TouchGlyph(pattern: Feeling.calm.touch, color: Feeling.calm.color, scale: 0.012)
-                        Text("Uses your **Calm** rhythm").font(EFont.body(14))
+                        Text("Learning your normal").font(EFont.body(15, .bold))
                         Spacer()
-                        if FeelingProgress.sessions(.calm, records) < 3 {
-                            Button("Train it first") { router.push(.trainIntro(.calm)) }.buttonStyle(TextLinkButtonStyle())
-                        }
+                        Text("\(min(baseline.days, 7)) of 7 days").font(EFont.body(13)).foregroundStyle(EColor.textSecondary)
                     }
+                    ThinProgress(value: Double(min(baseline.days, 7)) / 7, color: Color(hex: "#7FB2F0"))
+                    Text(baseline.ready
+                         ? "Resting heart rate about \(Int(baseline.restingHR ?? 0)) bpm\(baseline.hrvMedian.map { " · usual HRV \(Int($0)) ms" } ?? ""). Works from now; gets better over 7 days."
+                         : "Needs \(CalmCueMonitor.minBaselineDays) days of heart readings from your ring before it can start.")
+                        .font(EFont.body(13)).foregroundStyle(EColor.textSecondary)
                 }
                 .padding(16).eCard()
-                Text("Not a medical or diagnostic feature. Detection itself ships in a later version; turning this on now only records your choice.")
+
+                if let p = profile {
+                    @Bindable var profile = p
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("When to cue").font(EFont.body(15, .bold))
+                        Picker("When to cue", selection: $profile.calmCueSensitivity) {
+                            Text("Raised or high").tag("elevated")
+                            Text("High only").tag("high")
+                        }
+                        .pickerStyle(.segmented)
+                        .onChange(of: profile.calmCueSensitivity) { try? context.save() }
+                    }
+                    .padding(16).eCard()
+                }
+
+                HStack(spacing: 14) {
+                    TouchGlyph(pattern: .calmCue, color: Feeling.calm.color, scale: 0.012)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Slow down").font(EFont.body(15, .semibold))
+                        Text("Three soft hums, each gap longer").font(EFont.body(13)).foregroundStyle(EColor.textSecondary)
+                    }
+                    Spacer()
+                    Button("Feel it") { services.haptics.play(.calmCue) }
+                        .font(EFont.body(14, .bold)).foregroundStyle(EColor.calmGround)
+                        .padding(.horizontal, 16).frame(height: 40).background(Feeling.calm.color, in: Capsule())
+                }
+                .padding(16).eCard()
+
+                Button { router.meditation = .calmBreath } label: {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Try the calm breath").font(EFont.body(15, .semibold))
+                            Text("1½ min · in for 4, out for 7 · ring taps each in-breath").font(EFont.body(13)).foregroundStyle(EColor.textSecondary)
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.right").foregroundStyle(EColor.textMuted)
+                    }
+                    .padding(16).eCard()
+                }
+                .buttonStyle(.plain)
+
+                if let log = services.calm?.log, !log.isEmpty {
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack {
+                            Text("Recent checks").font(EFont.body(15, .bold))
+                            Spacer()
+                            Button("Clear") { services.calm?.clearLog() }.font(EFont.body(13, .semibold)).foregroundStyle(EColor.accent)
+                        }
+                        ForEach(Array(log.prefix(10).enumerated()), id: \.offset) { _, line in
+                            Text(line).font(EFont.body(12)).foregroundStyle(EColor.textSecondary).fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                    .padding(16).frame(maxWidth: .infinity, alignment: .leading).eCard()
+                }
+
+                #if DEBUG
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("DEVELOPER").font(EFont.label).tracking(1.2).foregroundStyle(EColor.debug)
+                    Button("Test: calm cue + notification now") { services.calm?.playTest(withNotification: true) }
+                        .font(EFont.body(14, .semibold)).foregroundStyle(EColor.debug)
+                    Text("Skips every check. Lock the phone right after tapping to see the notification.")
+                        .font(EFont.body(12)).foregroundStyle(EColor.textMuted)
+                }
+                .padding(16).frame(maxWidth: .infinity, alignment: .leading).eCard()
+                #endif
+
+                Text("Not a medical or diagnostic feature. On iPhone it checks when the app gets new ring data, so a cue can come a little after the moment.")
                     .font(EFont.body(12)).foregroundStyle(EColor.textMuted).frame(maxWidth: .infinity).multilineTextAlignment(.center).padding(.top, 10)
                 Button(enabled ? "Turn off calm cue" : "Turn on calm cue") {
-                    context.emotionProfile().calmCueEnabled.toggle(); try? context.save()
+                    context.emotionProfile().calmCueEnabled.toggle()
+                    try? context.save()
+                    if context.emotionProfile().calmCueEnabled {
+                        ReminderScheduler.requestPermission()
+                        services.calm?.evaluate(trigger: "turned on", force: true)
+                    }
                 }
                 .buttonStyle(PrimaryButtonStyle())
             }

@@ -226,8 +226,8 @@ struct TrainingSessionView: View {
                 Color.clear.frame(width: 44, height: 44)
             }
             Spacer()
-            BreathCircle(color: feeling.color, inSeconds: 4, outSeconds: 6)
-            Text("Breathe in for 4, out for 6").font(EFont.display(22, .medium))
+            BreathCircle(color: feeling.color, inSeconds: 4, outSeconds: 7)
+            Text("Breathe in for 4, out for 7").font(EFont.display(22, .medium))
             Text("\(settleLeft) s").font(EFont.body(15)).foregroundStyle(EColor.textSecondary)
             Spacer()
             Button("Skip to music") { startFeel() }.buttonStyle(SecondaryButtonStyle())

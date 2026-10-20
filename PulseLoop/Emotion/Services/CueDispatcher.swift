@@ -99,6 +99,8 @@ final class CueDispatcher {
         guard !checking else { return }
         checking = true
         defer { checking = false }
+        // Same wakes drive the calm cue check (it coalesces to once a minute).
+        services.calm?.evaluate(trigger: trigger.rawValue)
         lastCheckAt = Date()
         lastTrigger = trigger
         // Ring-data wakes are frequent while open; only log them when the app isn't on screen.
