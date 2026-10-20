@@ -146,25 +146,46 @@ enum Feeling: String, CaseIterable, Identifiable, Codable {
     }
     var rhythmDescription: String {
         switch self {
-        case .gratitude: "Two, pause, one"
-        case .love: "A heartbeat, twice"
-        case .joy: "Two quick flutters"
-        case .bliss: "Five rising taps"
-        case .calm: "Two slow hums"
-        case .confidence: "One, then two"
+        case .gratitude: "Two, two, then one"
+        case .love: "Three heartbeats"
+        case .joy: "Three quick triplets"
+        case .bliss: "Five taps, speeding up"
+        case .calm: "Four slow hums"
+        case .confidence: "One, one, then three"
         }
     }
+    /// Closest composer blocks, used as the composer's starting point.
     var blocks: [TouchBlock] {
         switch self {
-        case .gratitude: [.doubleTap, .shortRest, .tap]
-        case .love: [.heartbeat, .shortRest, .heartbeat]
-        case .joy: [.flutter, .shortRest, .flutter]
-        case .bliss: [.flutter, .doubleTap]
-        case .calm: [.longHum, .longRest, .longHum]
-        case .confidence: [.tap, .shortRest, .doubleTap]
+        case .gratitude: [.doubleTap, .longRest, .doubleTap, .longRest, .tap]
+        case .love: [.heartbeat, .longRest, .heartbeat, .longRest, .heartbeat]
+        case .joy: [.flutter, .shortRest, .flutter, .shortRest, .flutter]
+        case .bliss: [.tap, .longRest, .tap, .longRest, .tap, .shortRest, .tap, .shortRest, .tap]
+        case .calm: [.longHum, .longRest, .longHum, .longRest, .longHum, .longRest, .longHum]
+        case .confidence: [.tap, .longRest, .tap, .longRest, .flutter]
         }
     }
-    var touch: TouchPattern { TouchBlock.compose(blocks, id: "feeling.\(rawValue)", name: "\(name) touch") }
+    /// Alternating motor-on / off ms, starting with on (v2: stronger, easier to feel).
+    /// Most rings only have a fixed "find device" buzz (~0.3–0.5 s), so every motor-on segment
+    /// becomes one buzz: each touch is 5–9 buzzes in clear groups, with buzzes inside a group at
+    /// least ~0.6 s apart (the shortest gap those rings can do) and 0.9–1.3 s between groups.
+    var durationsMs: [Int] {
+        switch self {
+        // 2 · 2 · 1 ("thank you, thank you, yes")
+        case .gratitude: [350, 300, 350, 1200, 350, 300, 350, 1200, 500]
+        // three heartbeats: short-long pairs
+        case .love: [300, 300, 450, 1000, 300, 300, 450, 1000, 300, 300, 450]
+        // three quick triplets
+        case .joy: [250, 350, 250, 350, 250, 900, 250, 350, 250, 350, 250, 900, 250, 350, 250, 350, 250]
+        // five taps, gaps shrinking, ending on a long one
+        case .bliss: [300, 1300, 300, 1000, 300, 750, 300, 550, 700]
+        // four slow, even hums
+        case .calm: [700, 1300, 700, 1300, 700, 1300, 700]
+        // 1 · 1 · 3 (step, step, rise)
+        case .confidence: [450, 900, 450, 900, 300, 300, 300, 300, 600]
+        }
+    }
+    var touch: TouchPattern { TouchPattern(id: "feeling.\(rawValue)", name: "\(name) touch", durationsMs: durationsMs) }
 
     var intention: String {
         switch self {

@@ -337,6 +337,6 @@ final class CalmCueMonitor {
 }
 
 extension TouchPattern {
-    /// Calm cue: three soft hums with lengthening gaps, like a breath slowing down.
-    static let calmCue = TouchPattern(id: "calm.cue", name: "Slow down", durationsMs: [800, 1200, 800, 1800, 800])
+    /// Calm cue: five hums with each gap longer, like a breath slowing down.
+    static let calmCue = TouchPattern(id: "calm.cue", name: "Slow down", durationsMs: [600, 700, 600, 1000, 600, 1400, 600, 1800, 600])
 }

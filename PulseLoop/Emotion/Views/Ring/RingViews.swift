@@ -232,7 +232,7 @@ struct StressCueView: View {
                     TouchGlyph(pattern: .calmCue, color: Feeling.calm.color, scale: 0.012)
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Slow down").font(EFont.body(15, .semibold))
-                        Text("Three soft hums, each gap longer").font(EFont.body(13)).foregroundStyle(EColor.textSecondary)
+                        Text("Five hums, each gap longer").font(EFont.body(13)).foregroundStyle(EColor.textSecondary)
                     }
                     Spacer()
                     Button("Feel it") { services.haptics.play(.calmCue) }

@@ -166,11 +166,11 @@ struct TouchGlyph: View {
     var color: Color
     var scale: CGFloat = 0.034
     var height: CGFloat = 10
-    /// When set, the glyph shrinks (never grows) to fit this width.
+    /// The glyph shrinks (never grows) to fit this width (default 150 pt, so long touches stay in their row).
     var maxWidth: CGFloat? = nil
     var body: some View {
         let total = CGFloat(max(1, pattern.durationsMs.reduce(0, +)))
-        let s = maxWidth.map { min(scale, $0 / total) } ?? scale
+        let s = min(scale, (maxWidth ?? 150) / total)
         HStack(spacing: 0) {
             ForEach(Array(pattern.durationsMs.enumerated()), id: \.offset) { index, ms in
                 let on = pattern.isOn(segment: index)
