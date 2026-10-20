@@ -18,6 +18,8 @@ struct PulseLoopApp: App {
     @State private var gpsRecorder: GpsRouteRecorder
     @State private var liveWorkout: LiveWorkoutManager
     @State private var emotion: EmotionServices
+    /// Debug switch between the emotion app and the original PulseLoop UI (takes effect immediately).
+    @AppStorage(EmotionServices.legacyUIKey) private var legacyUI = false
     /// Retained for app lifetime so it keeps draining the event bus into SwiftData.
     private let persistence: EventPersistenceSubscriber
     /// Retained so it keeps regenerating Today/Sleep coach summaries on new data.
@@ -147,8 +149,20 @@ struct PulseLoopApp: App {
     var body: some Scene {
         WindowGroup {
             Group {
-                if UserDefaults.standard.bool(forKey: EmotionServices.legacyUIKey) {
+                if legacyUI {
                     RootAppView()
+                        #if DEBUG
+                        .overlay(alignment: .topTrailing) {
+                            Button { legacyUI = false } label: {
+                                Label("Emotion app", systemImage: "arrow.uturn.backward")
+                                    .font(.system(size: 13, weight: .semibold))
+                                    .padding(.horizontal, 12).frame(height: 32)
+                                    .background(.ultraThinMaterial, in: Capsule())
+                            }
+                            .padding(.trailing, 12).padding(.top, 4)
+                            .accessibilityLabel("Back to the emotion app")
+                        }
+                        #endif
                 } else {
                     EmotionRootView()
                 }

@@ -72,7 +72,7 @@ struct RingSettingsView: View {
                     Divider().overlay(EColor.line)
                     link("Reminder delivery test (real ring)") { router.push(.deliveryTest) }
                     Divider().overlay(EColor.line)
-                    link("Switch to original PulseLoop UI") {
+                    link("Switch to original PulseLoop UI (button top right brings you back)") {
                         UserDefaults.standard.set(true, forKey: EmotionServices.legacyUIKey)
                     }
                     Divider().overlay(EColor.line)
@@ -82,7 +82,6 @@ struct RingSettingsView: View {
                     }
                 }
                 .padding(.horizontal, 16).eCard(radius: 18)
-                Text("Switching to the original UI takes effect after relaunching the app.").font(EFont.body(12)).foregroundStyle(EColor.textMuted)
                 #endif
             }
             .padding(.horizontal, 20).padding(.bottom, 32)
