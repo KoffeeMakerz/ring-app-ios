@@ -125,3 +125,43 @@ Rules:
 | Date | Ring | Phone state | 2 min | 5 min | 10 min | Notes |
 |---|---|---|---|---|---|---|
 | | | | | | | |
+
+## Calm cue — design and how to test (2026-10-20, iOS)
+
+Commit `2a6eb43` (iOS). Android has the calm images only, because meditation and reminders aren't ported yet.
+
+**What it does.** The app checks on every wake: ring data, app open, notification, or background refresh, at most once a minute. When the rules below hold, the ring plays the **Slow down** touch: three soft hums with lengthening gaps, `[800, 1200, 800, 1800, 800]` ms. A notification also says "Feeling tense? … breathe in for 4, out for 7". Tapping it opens **Calm breath**: a 99 s session at 4 in / 7 out, with the ring tapping each in-breath and calm images behind it.
+
+**Rules (all must hold):**
+
+- **Still for 15 min.**
+  - No workout is recording, and none ended in the last 15 min.
+  - At most 40 steps across at least 15 min. This comes from snapshots of today's step total, taken each time the ring syncs.
+  - So after a walk or run it waits until you have settled.
+- **A fresh reading** from the last 15 min is raised (Raised / High). Workout and mock readings are ignored.
+  - Ring stress score: ≥60 / ≥80.
+  - Heart rate (at least 2 readings): ≥15 / ≥25 bpm above resting.
+  - HRV: ≤75% / ≤60% of usual.
+- **Your normal is known:** at least 3 days of heart readings.
+  - Resting HR = the 20th percentile over 7 days.
+  - Usual HRV = the median.
+- **Limits:**
+  - At most once every 2 h, and 4 a day.
+  - Never in quiet hours, or while reminders are paused.
+  - The user can choose **Raised or high** (default) or **High only**.
+
+**Breathing default** is now 4 in / 7 out. Existing profiles were moved once, and training's settle step also uses 4/7.
+
+**Calm images:** 11 original illustrations, made in code (`docs/emotion-app/calm_images.py`). They play as a slow, dimmed slideshow behind meditation sessions, changing every 20 s.
+
+**How to test (Ring tab → Calm cue when tense):**
+1. Turn it on. "Right now" shows the current decision. "Recent checks" lists each change, such as learning / not still / can't tell / readings / sent.
+2. **Feel it** plays the touch. **Try the calm breath** opens the session.
+3. Debug builds have **Test: calm cue + notification now**, which skips every check. Lock the phone right after tapping.
+4. Real check: after 3 days of ring data, sit still for 20 min after a stressful moment and see whether the log says "SENT".
+
+**Open questions and limitations:**
+- Thresholds are first guesses. Tune them with real data.
+- The ring stress score only exists on some rings, such as Colmi. Others rely on heart rate and HRV.
+- Steps update only when the ring syncs. Until there are two step snapshots 15 min apart, it logs "can't tell if still".
+- On iPhone it reacts when new ring data wakes the app, so a cue can come a little after the moment.
