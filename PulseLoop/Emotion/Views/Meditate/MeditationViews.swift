@@ -48,7 +48,7 @@ struct MeditateSelectView: View {
                         }
                         .frame(minHeight: 56)
                         Divider().overlay(EColor.line)
-                        ToggleRow(title: "Ring guides my breath", subtitle: "A buzz at each inhale, so eyes can close", isOn: $profile.ringGuidesBreath)
+                        ToggleRow(title: "Ring guides my breath", subtitle: "A gentle tap every third in-breath, so eyes can close. Never during coherence.", isOn: $profile.ringGuidesBreath)
                         Divider().overlay(EColor.line)
                         ToggleRow(title: "Heart rhythm chart", subtitle: "Optional · HRV and coherence from the ring's heart rate", isOn: $profile.liveHeartFeedback)
                     }
@@ -102,7 +102,7 @@ struct PhaseStrip: View {
     }
 }
 
-/// 4.4 Session player: phases, breath pacer (+ ring buzz on each inhale), live coherence estimate.
+/// 4.4 Session player: phases, breath pacer (+ a ring tap every third in-breath, none in coherence), live coherence estimate.
 struct MeditationSessionView: View {
     let kind: MeditationKind
     @Environment(EmotionServices.self) private var services
@@ -117,6 +117,10 @@ struct MeditationSessionView: View {
     @AppStorage("emotion.showHeartChart") private var showHeart = true
     /// When each in-breath started, to draw the breath bands on the heart chart.
     @State private var inhaleStarts: [Date] = []
+    @State private var breathCount = 0
+    /// Ring guidance taps only every few breaths (frequent taps were too much), and never during
+    /// coherence breathing, where the person follows the circle and their own rhythm.
+    static let ringTapEveryBreaths = 3
     @State private var coherence: [CoherenceLevel: Int] = [:]
     @State private var hrStart: Int?
     @State private var finished = false
@@ -309,7 +313,13 @@ struct MeditationSessionView: View {
                     inhaleStarts.append(Date())
                     inhaleStarts.removeAll { Date().timeIntervalSince($0) > 90 }
                 }
-                if inhale, isBreathingPhase, profile?.ringGuidesBreath ?? true { services.haptics.playSingle() }
+                if inhale, isBreathingPhase {
+                    breathCount += 1
+                    let coherencePhase = phaseName.lowercased().contains("coherence")
+                    if !coherencePhase, (breathCount - 1) % Self.ringTapEveryBreaths == 0, profile?.ringGuidesBreath ?? true {
+                        services.haptics.playSingle()
+                    }
+                }
             }
             phaseSecondsLeft = nowInhale ? inS - pos : cycle - pos
             if breathT.truncatingRemainder(dividingBy: 1) == 0 {

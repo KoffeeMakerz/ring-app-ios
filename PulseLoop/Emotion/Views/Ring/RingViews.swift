@@ -245,7 +245,7 @@ struct StressCueView: View {
                     HStack {
                         VStack(alignment: .leading, spacing: 2) {
                             Text("Try the calm breath").font(EFont.body(15, .semibold))
-                            Text("1½ min · in for 4, out for 7 · ring taps each in-breath").font(EFont.body(13)).foregroundStyle(EColor.textSecondary)
+                            Text("1½ min · in for 4, out for 7 · a ring tap every few breaths").font(EFont.body(13)).foregroundStyle(EColor.textSecondary)
                         }
                         Spacer()
                         Image(systemName: "chevron.right").foregroundStyle(EColor.textMuted)
