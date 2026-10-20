@@ -360,7 +360,7 @@ struct ImagesPickerView: View {
                                 Button { refs = ["app:\(set.id)"] } label: {
                                     VStack(alignment: .leading, spacing: 8) {
                                         LazyVGrid(columns: [GridItem(.flexible(), spacing: 3), GridItem(.flexible(), spacing: 3)], spacing: 3) {
-                                            ForEach(0..<4, id: \.self) { i in (i % 3 == 0 ? set.feeling.ground : set.feeling.color.opacity(0.35)).frame(height: 46) }
+                                            ForEach(0..<4, id: \.self) { i in Color.clear.frame(height: 46).overlay(Image(set.imageNames[i % set.count]).resizable().scaledToFill()).clipped() }
                                         }
                                         .clipShape(RoundedRectangle(cornerRadius: 10))
                                         Text(set.name).font(EFont.body(14, .bold))

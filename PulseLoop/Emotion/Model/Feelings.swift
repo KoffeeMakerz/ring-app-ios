@@ -306,20 +306,41 @@ struct MusicTrack: Identifiable, Hashable {
     var durationLabel: String { "\(durationS / 60):\(String(format: "%02d", durationS % 60))" }
 }
 
-/// Built-in image sets (placeholders until artwork lands).
+/// Built-in image sets. Images live in Assets.xcassets/Slideshow (mirrored in Android res/drawable-nodpi).
+/// `art_*` are original illustrations; `photo_*` are Unsplash License photos (credits in claude/image-credits-v1.md).
 struct ImageSet: Identifiable, Hashable {
     let id: String
     let name: String
     let feeling: Feeling
-    let count: Int
+    let imageNames: [String]
+    var count: Int { imageNames.count }
+
+    private init(id: String, name: String, feeling: Feeling, prefix: String, count: Int) {
+        self.id = id
+        self.name = name
+        self.feeling = feeling
+        self.imageNames = (1...count).map { "\(prefix)_\(id)_" + String(format: "%02d", $0) }
+    }
+
     static let all: [ImageSet] = [
-        .init(id: "golden", name: "Golden mornings", feeling: .gratitude, count: 12),
-        .init(id: "hearts", name: "Warm hearts", feeling: .love, count: 10),
-        .init(id: "sky", name: "Open sky", feeling: .joy, count: 14),
-        .init(id: "growth", name: "Green growth", feeling: .confidence, count: 12),
-        .init(id: "water", name: "Still water", feeling: .calm, count: 9),
-        .init(id: "summit", name: "Summit", feeling: .bliss, count: 11),
+        .init(id: "golden", name: "Golden mornings", feeling: .gratitude, prefix: "art", count: 3),
+        .init(id: "hearts", name: "Warm hearts", feeling: .love, prefix: "art", count: 3),
+        .init(id: "sky", name: "Open sky", feeling: .joy, prefix: "art", count: 3),
+        .init(id: "growth", name: "Green growth", feeling: .confidence, prefix: "art", count: 3),
+        .init(id: "water", name: "Still water", feeling: .calm, prefix: "art", count: 3),
+        .init(id: "summit", name: "Summit", feeling: .bliss, prefix: "art", count: 4),
+        .init(id: "home", name: "Dream home", feeling: .joy, prefix: "photo", count: 5),
+        .init(id: "beach", name: "Beach & vacation", feeling: .joy, prefix: "photo", count: 4),
+        .init(id: "together", name: "Together", feeling: .love, prefix: "photo", count: 5),
+        .init(id: "abundance", name: "Abundance", feeling: .confidence, prefix: "photo", count: 3),
+        .init(id: "shores", name: "Calm shores", feeling: .calm, prefix: "photo", count: 2),
     ]
+
+    /// App images for a slideshow: only the set the user picked for this experience (none otherwise).
+    static func images(for experience: Experience?) -> [String] {
+        guard let id = experience?.imageSetID, let set = all.first(where: { $0.id == id }) else { return [] }
+        return set.imageNames
+    }
 }
 
 struct GuideVideo: Identifiable {

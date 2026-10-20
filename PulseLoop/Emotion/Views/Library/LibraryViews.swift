@@ -187,10 +187,13 @@ struct SlideTile: View {
 
     var body: some View {
         let ids = experience?.photoIdentifiers ?? []
+        let appImages = ImageSet.images(for: experience)
         GeometryReader { geo in
             ZStack {
                 if let image {
                     Image(uiImage: image).resizable().scaledToFill().frame(width: geo.size.width, height: geo.size.height).clipped()
+                } else if ids.isEmpty, !appImages.isEmpty {
+                    Image(appImages[index % appImages.count]).resizable().scaledToFill().frame(width: geo.size.width, height: geo.size.height).clipped()
                 } else {
                     ImagePlaceholder(color: Color.placeholderTones[(index * 3 + (Feeling.allCases.firstIndex(of: experience?.feeling ?? fallback) ?? 0)) % 8])
                 }
@@ -214,7 +217,7 @@ struct SlideshowView: View {
         ZStack {
             SlideTile(experience: experience, index: index, fallback: fallback).id(index)
                 .transition(.opacity)
-            if ids.isEmpty && showLabel {
+            if ids.isEmpty && showLabel && ImageSet.images(for: experience).isEmpty {
                 Text("[\(experience?.imageSetID.flatMap { id in ImageSet.all.first { $0.id == id }?.name } ?? "App image") \(index + 1)]".uppercased())
                     .font(EFont.body(12, .medium)).tracking(1).foregroundStyle(Color(hex: "#C9AE86"))
             }
