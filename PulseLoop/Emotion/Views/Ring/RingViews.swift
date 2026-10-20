@@ -123,6 +123,45 @@ struct StressCueView: View {
     @Environment(EmotionRouter.self) private var router
     @Environment(EmotionServices.self) private var services
     @Query private var profiles: [EmotionProfile]
+    @State private var measuringHR = false
+    @State private var refresh = 0
+
+    /// What the ring has actually sent, so missing heart-rate history is visible.
+    private var ringDataCard: some View {
+        let rows = services.calm?.latestReadings() ?? []
+        let noHR = rows.first?.at.map { Date().timeIntervalSince($0) > 6 * 3600 } ?? true
+        let canMeasure = services.client.state == .connected && services.client.activeCapabilities.contains(.manualHeartRate)
+        return VStack(alignment: .leading, spacing: 8) {
+            Text("What your ring is sending").font(EFont.body(15, .bold))
+            ForEach(rows, id: \.name) { row in
+                HStack {
+                    Text(row.name).font(EFont.body(14))
+                    Spacer()
+                    Text(row.value).font(EFont.body(14, .semibold))
+                    if let at = row.at {
+                        Text("· \(at.formatted(.relative(presentation: .numeric)))").font(EFont.body(12)).foregroundStyle(EColor.textSecondary)
+                    }
+                }
+            }
+            if noHR {
+                Text("No recent heart-rate history from your ring. The calm cue still uses HRV and stress, and takes a quick heart-rate reading itself when you're still and the ring is connected.")
+                    .font(EFont.body(12)).foregroundStyle(EColor.textSecondary).fixedSize(horizontal: false, vertical: true)
+            }
+            if canMeasure {
+                Button(measuringHR ? "Measuring… keep your hand still" : "Measure heart rate now") {
+                    measuringHR = true
+                    Task {
+                        _ = await services.coordinator.measureHR()
+                        measuringHR = false
+                        refresh += 1
+                    }
+                }
+                .font(EFont.body(14, .semibold)).foregroundStyle(EColor.accent).disabled(measuringHR)
+            }
+        }
+        .id(refresh)
+        .padding(16).frame(maxWidth: .infinity, alignment: .leading).eCard()
+    }
 
     var body: some View {
         let profile = profiles.first
@@ -159,6 +198,8 @@ struct StressCueView: View {
                 }
                 .padding(16).frame(maxWidth: .infinity, alignment: .leading).eCard()
 
+                ringDataCard
+
                 VStack(alignment: .leading, spacing: 10) {
                     HStack {
                         Text("Learning your normal").font(EFont.body(15, .bold))
@@ -167,8 +208,8 @@ struct StressCueView: View {
                     }
                     ThinProgress(value: Double(min(baseline.days, 7)) / 7, color: Color(hex: "#7FB2F0"))
                     Text(baseline.ready
-                         ? "Resting heart rate about \(Int(baseline.restingHR ?? 0)) bpm\(baseline.hrvMedian.map { " · usual HRV \(Int($0)) ms" } ?? ""). Works from now; gets better over 7 days."
-                         : "Needs \(CalmCueMonitor.minBaselineDays) days of heart readings from your ring before it can start.")
+                         ? [baseline.restingHR.map { "Resting heart rate about \(Int($0)) bpm" }, baseline.hrvMedian.map { "usual HRV \(Int($0)) ms" }].compactMap { $0 }.joined(separator: " · ") + ". Works from now; gets better over 7 days."
+                         : "Needs \(CalmCueMonitor.minBaselineDays) days of readings (heart rate, HRV or stress) from your ring before it can start.")
                         .font(EFont.body(13)).foregroundStyle(EColor.textSecondary)
                 }
                 .padding(16).eCard()

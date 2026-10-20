@@ -33,7 +33,8 @@ final class CalmCueMonitor {
         var days = 0
         var restingHR: Double?
         var hrvMedian: Double?
-        var ready: Bool { days >= CalmCueMonitor.minBaselineDays && restingHR != nil }
+        /// Any of heart rate, HRV or stress counts: some rings send HRV but no heart-rate history.
+        var ready: Bool { days >= CalmCueMonitor.minBaselineDays }
     }
 
     static let stillMinutes: Double = 15
@@ -49,6 +50,9 @@ final class CalmCueMonitor {
     @ObservationIgnored private var lastEvaluation = Date.distantPast
     @ObservationIgnored private var lastLoggedOutcome = ""
     @ObservationIgnored private var baselineCache: (at: Date, value: Baseline)?
+    /// A spot heart-rate reading taken for the check when the ring sent no recent heart rate.
+    @ObservationIgnored private var spotHR: (value: Double, at: Date)?
+    @ObservationIgnored private var measuringSpot = false
 
     /// Last check in words, for the settings screen.
     private(set) var lastAssessment = "Not checked yet"
@@ -85,6 +89,19 @@ final class CalmCueMonitor {
             return
         case .still:
             break
+        }
+        // No recent heart rate from the ring's history: take one spot reading (at most every 10 min).
+        if needsSpotHR(now: now) {
+            measuringSpot = true
+            outcome(trigger, "still · measuring heart rate")
+            Task { [weak self] in
+                guard let self else { return }
+                let v = await self.services.coordinator.measureHR()
+                self.measuringSpot = false
+                self.spotHR = (Double(v ?? 0), Date())
+                if v != nil { self.evaluate(trigger: "spot heart rate", force: true) }
+            }
+            return
         }
         let (level, reason) = assess(now: now, baseline: baseline)
         let needed: Level = profile.calmCueSensitivity == "high" ? .high : .elevated
@@ -193,6 +210,26 @@ final class CalmCueMonitor {
         return .still
     }
 
+    private func needsSpotHR(now: Date) -> Bool {
+        guard !measuringSpot, !services.haptics.usesSimulator, services.client.state == .connected,
+              services.client.activeCapabilities.contains(.manualHeartRate) else { return false }
+        if let s = spotHR, now.timeIntervalSince(s.at) < 10 * 60 { return false }
+        let since = now.addingTimeInterval(-Self.readingWindowMinutes * 60)
+        return readings(.heartRate, since: since).count < 2
+    }
+
+    /// Latest heart rate, HRV and stress the ring has sent (for the settings screen).
+    struct RingReading: Hashable { let name: String; let value: String; let at: Date? }
+
+    func latestReadings() -> [RingReading] {
+        let week = Date().addingTimeInterval(-7 * 86_400)
+        func latest(_ k: MeasurementKind) -> Measurement? { readings(k, since: week).first }
+        let hr = latest(.heartRate), hrv = latest(.hrv), stress = latest(.stress)
+        return [RingReading(name: "Heart rate", value: hr.map { "\(Int($0.value)) bpm" } ?? "none in 7 days", at: hr?.timestamp),
+                RingReading(name: "HRV", value: hrv.map { "\(Int($0.value)) ms" } ?? "none in 7 days", at: hrv?.timestamp),
+                RingReading(name: "Stress", value: stress.map { "\(Int($0.value))" } ?? "none in 7 days", at: stress?.timestamp)]
+    }
+
     /// Compare fresh readings with the personal baseline.
     func assess(now: Date, baseline: Baseline) -> (Level, String) {
         let since = now.addingTimeInterval(-Self.readingWindowMinutes * 60)
@@ -206,8 +243,10 @@ final class CalmCueMonitor {
             if l > .none { reasons.append("stress \(Int(s))") }
             level = max(level, l)
         }
-        let hr = readings(.heartRate, since: since).map(\.value).filter { $0 >= 35 && $0 <= 200 }
-        if hr.count >= 2, let rest = baseline.restingHR, let low = hr.min() {
+        var hr = readings(.heartRate, since: since).map(\.value).filter { $0 >= 35 && $0 <= 200 }
+        let usedSpot = hr.count < 2 && spotHR.map { now.timeIntervalSince($0.at) < Self.readingWindowMinutes * 60 && $0.value >= 35 } == true
+        if usedSpot, let s = spotHR { hr = [s.value] }
+        if hr.count >= 2 || usedSpot, let rest = baseline.restingHR, let low = hr.min() {
             let over = low - rest
             let l: Level = over >= 25 ? .high : over >= 15 ? .elevated : .none
             if l > .none { reasons.append("heart \(Int(low))+ bpm vs \(Int(rest)) resting") }
@@ -219,7 +258,7 @@ final class CalmCueMonitor {
             if l > .none { reasons.append("HRV \(Int(v)) vs usual \(Int(median)) ms") }
             level = max(level, l)
         }
-        if stress.isEmpty && hr.count < 2 && reasons.isEmpty { reasons.append("no fresh readings") }
+        if stress.isEmpty && hr.isEmpty && reasons.isEmpty { reasons.append("no fresh readings") }
         return (level, reasons.joined(separator: ", "))
     }
 
@@ -229,8 +268,9 @@ final class CalmCueMonitor {
         let since = now.addingTimeInterval(-7 * 86_400)
         var b = Baseline()
         let hr = readings(.heartRate, since: since).filter { $0.value >= 35 && $0.value <= 200 }
-        b.days = Set(hr.map { Calendar.current.startOfDay(for: $0.timestamp) }).count
-        if hr.count >= 40 {
+        let any = hr + readings(.hrv, since: since) + readings(.stress, since: since)
+        b.days = Set(any.map { Calendar.current.startOfDay(for: $0.timestamp) }).count
+        if hr.count >= 20 {
             let sorted = hr.map(\.value).sorted()
             b.restingHR = sorted[Int(Double(sorted.count) * 0.2)]
         }
