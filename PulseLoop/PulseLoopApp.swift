@@ -137,6 +137,7 @@ struct PulseLoopApp: App {
         notificationDataTrigger.start()
         // Reminder cues: phone-sent ring touches, delivered whenever iOS lets the app run.
         emotionServices.startReminderDelivery(context: container.mainContext)
+        ExperienceImageStore.prune(container.mainContext)
 
         // Daily check-in notifications: route taps + register the background wake.
         UNUserNotificationCenter.current().delegate = notificationDelegate

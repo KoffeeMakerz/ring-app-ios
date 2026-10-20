@@ -238,6 +238,9 @@ struct ExperiencePlayerView: View {
                     PlayerBarButton(icon: "arrow.up.left.and.arrow.down.right", label: "Full screen image") {
                         withAnimation(.easeInOut(duration: 0.3)) { immersive = true }
                     }
+                    SlideActionsMenu(experience: experience, index: playback?.slideIndex ?? 0) { n in
+                        playback?.slideCount = n == 0 ? 6 : n
+                    }
                     Button { showVision = true } label: {
                         Label("Vision", systemImage: "list.bullet").font(EFont.body(14, .bold))
                             .padding(.horizontal, 16).frame(height: 44).background(EColor.ground.opacity(0.85), in: Capsule())

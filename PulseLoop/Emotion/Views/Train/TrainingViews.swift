@@ -269,6 +269,9 @@ struct TrainingSessionView: View {
                         PlayerBarButton(icon: "arrow.up.left.and.arrow.down.right", label: "Full screen image") {
                             withAnimation(.easeInOut(duration: 0.3)) { immersive = true }
                         }
+                        if let experience {
+                            SlideActionsMenu(experience: experience, index: p.slideIndex) { n in p.slideCount = n == 0 ? 6 : n }
+                        }
                     }
                     if multi {
                         HStack(spacing: 6) {

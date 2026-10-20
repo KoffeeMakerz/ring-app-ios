@@ -303,6 +303,7 @@ struct ExperienceBuilderView: View {
         e.imageRefs = imageRefs
         e.cueAuto = cueAuto
         try? context.save()
+        ExperienceImageStore.prune(context)
         return e
     }
 }

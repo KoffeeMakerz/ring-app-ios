@@ -1,4 +1,5 @@
 import Photos
+import SwiftData
 import SwiftUI
 import UIKit
 
@@ -133,5 +134,66 @@ struct SlideImage: View {
                 image = await SlideImageLoader.image(for: slide, size: geo.size)
             }
         }
+    }
+}
+
+extension Experience {
+    /// Takes one image out of this experience's slideshow.
+    func removeSlide(_ slide: SlideRef) {
+        imageRefs = SlideRef.normalized(imageRefs).filter { $0 != slide.ref }
+    }
+}
+
+extension ExperienceImageStore {
+    /// Deletes private photo copies that no saved experience uses any more
+    /// (removed from a slideshow, or added in a builder that was closed without saving).
+    static func prune(_ context: ModelContext) {
+        guard let all = try? context.fetch(FetchDescriptor<Experience>()) else { return }
+        let used = Set(all.flatMap(\.imageRefs).filter { $0.hasPrefix("file:") }.map { String($0.dropFirst(5)) })
+        let dir = folder
+        let files = (try? FileManager.default.contentsOfDirectory(atPath: dir.path(percentEncoded: false))) ?? []
+        for name in files where !used.contains(name) {
+            try? FileManager.default.removeItem(at: dir.appending(path: name))
+        }
+    }
+}
+
+/// "…" button in a player's top bar: remove the image on screen from this experience's slideshow.
+struct SlideActionsMenu: View {
+    let experience: Experience
+    let index: Int
+    /// Called with the new number of images after a removal.
+    var onRemoved: (Int) -> Void = { _ in }
+    @Environment(\.modelContext) private var context
+    @State private var confirming: SlideRef?
+
+    var body: some View {
+        let slides = experience.slides
+        if !slides.isEmpty {
+            let current = slides[index % slides.count]
+            Menu {
+                Button("Remove this image", systemImage: "trash", role: .destructive) {
+                    if current.isOwnPhoto { confirming = current } else { remove(current) }
+                }
+            } label: {
+                Image(systemName: "ellipsis").font(.system(size: 16, weight: .semibold))
+                    .frame(width: 44, height: 44).background(EColor.ground.opacity(0.85), in: Circle())
+            }
+            .accessibilityLabel("Image options")
+            .confirmationDialog("Remove this photo from the slideshow?",
+                                isPresented: Binding(get: { confirming != nil }, set: { if !$0 { confirming = nil } }),
+                                titleVisibility: .visible) {
+                Button("Remove photo", role: .destructive) { if let c = confirming { remove(c) } }
+            } message: {
+                Text("The app's copy is deleted. The original in your Photos isn't touched.")
+            }
+        }
+    }
+
+    private func remove(_ slide: SlideRef) {
+        withAnimation { experience.removeSlide(slide) }
+        try? context.save()
+        ExperienceImageStore.prune(context)
+        onRemoved(experience.slides.count)
     }
 }
