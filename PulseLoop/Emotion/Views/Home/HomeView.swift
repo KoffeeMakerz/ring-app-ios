@@ -90,7 +90,7 @@ struct HomeView: View {
                         Button { router.push(.builder(nil)) } label: {
                             VStack(spacing: 6) {
                                 Image(systemName: "plus").font(.system(size: 18, weight: .bold))
-                                Text("New vision").font(EFont.body(13, .bold))
+                                Text("New experience").font(EFont.body(13, .bold)).multilineTextAlignment(.center)
                             }
                             .foregroundStyle(EColor.accent)
                             .frame(maxWidth: .infinity, minHeight: 132)

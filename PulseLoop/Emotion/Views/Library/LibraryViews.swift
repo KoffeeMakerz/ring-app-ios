@@ -5,7 +5,6 @@ import UIKit
 
 struct LibraryView: View {
     @Environment(EmotionRouter.self) private var router
-    @State private var segment = 0
     @State private var theme: MusicTheme = .abundance
     @Query(sort: \Experience.createdAt, order: .reverse) private var experiences: [Experience]
 
@@ -16,14 +15,31 @@ struct LibraryView: View {
                     Text("Experiences").font(EFont.display(28))
                     Spacer()
                     Button { router.push(.builder(nil)) } label: {
-                        Label("New vision", systemImage: "plus").font(EFont.body(14, .bold)).foregroundStyle(EColor.onAccent)
+                        Label("New experience", systemImage: "plus").font(EFont.body(14, .bold)).foregroundStyle(EColor.onAccent)
                             .padding(.horizontal, 16).frame(height: 40).background(EColor.accent, in: Capsule())
                     }
                 }
                 .padding(.top, 8)
-                Picker("Experiences", selection: $segment) { Text("My visions").tag(0); Text("Music").tag(1) }
-                    .pickerStyle(.segmented)
-                if segment == 0 { mine } else { explore }
+                // "My music" is coming soon: shown but not selectable yet.
+                HStack(spacing: 4) {
+                    Text("My experiences").font(EFont.body(14, .semibold))
+                        .frame(maxWidth: .infinity).frame(height: 34)
+                        .background(EColor.cardRaised, in: RoundedRectangle(cornerRadius: 9))
+                        .accessibilityAddTraits(.isSelected)
+                    HStack(spacing: 6) {
+                        Text("My music").font(EFont.body(14, .semibold))
+                        Text("Soon").font(EFont.body(11, .bold)).foregroundStyle(EColor.onAccent)
+                            .padding(.horizontal, 6).padding(.vertical, 2).background(EColor.textMuted, in: Capsule())
+                    }
+                    .foregroundStyle(EColor.textMuted)
+                    .frame(maxWidth: .infinity).frame(height: 34)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("My music, coming soon")
+                    .accessibilityAddTraits(.isStaticText)
+                }
+                .padding(3)
+                .background(EColor.card, in: RoundedRectangle(cornerRadius: 11))
+                mine
             }
             .padding(.horizontal, 20).padding(.bottom, 32)
         }
@@ -31,6 +47,7 @@ struct LibraryView: View {
         .toolbar(.hidden, for: .navigationBar)
     }
 
+    /// Music library, shown again as "My music" once songs are ready.
     private var explore: some View {
         VStack(alignment: .leading, spacing: 16) {
             EFlowChips(items: MusicTheme.allCases) { t in
