@@ -71,6 +71,29 @@ final class CueDispatcher {
         }
     }
 
+    /// Recent wakes and what happened, newest first (kept across launches for the developer test).
+    static let wakeLogKey = "emotion.cue.wakeLog"
+    private(set) var wakeLog: [String] = UserDefaults.standard.stringArray(forKey: CueDispatcher.wakeLogKey) ?? []
+
+    private func logWake(_ trigger: Trigger, _ outcome: String) {
+        let state: String
+        switch UIApplication.shared.applicationState {
+        case .active: state = "open"
+        case .inactive: state = "inactive"
+        case .background: state = "background/locked"
+        @unknown default: state = "?"
+        }
+        let line = "\(Date().formatted(date: .omitted, time: .standard)) · \(trigger.rawValue) · app \(state) · \(outcome)"
+        wakeLog.insert(line, at: 0)
+        if wakeLog.count > 60 { wakeLog.removeLast(wakeLog.count - 60) }
+        UserDefaults.standard.set(wakeLog, forKey: Self.wakeLogKey)
+    }
+
+    func clearWakeLog() {
+        wakeLog = []
+        UserDefaults.standard.removeObject(forKey: Self.wakeLogKey)
+    }
+
     /// Deliver whatever is due now. Safe to call often.
     func check(_ trigger: Trigger) {
         guard !checking else { return }
@@ -78,13 +101,18 @@ final class CueDispatcher {
         defer { checking = false }
         lastCheckAt = Date()
         lastTrigger = trigger
+        // Ring-data wakes are frequent while open; only log them when the app isn't on screen.
+        let quiet = trigger == .ringData && UIApplication.shared.applicationState == .active
 
         let now = Date()
         let scheduled = "scheduled"
         let due = ((try? context.fetch(FetchDescriptor<ReminderEvent>(
             predicate: #Predicate { $0.status == scheduled && $0.scheduledAt <= now },
             sortBy: [SortDescriptor(\.scheduledAt)]))) ?? [])
-        guard !due.isEmpty else { return }
+        guard !due.isEmpty else {
+            if !quiet { logWake(trigger, "nothing due") }
+            return
+        }
 
         var live: [ReminderEvent] = []
         for event in due {
@@ -96,7 +124,10 @@ final class CueDispatcher {
                 live.append(event)
             }
         }
-        guard let latest = live.last else { try? context.save(); return }
+        guard let latest = live.last else {
+            logWake(trigger, "skipped \(due.count) late cue(s)")
+            try? context.save(); return
+        }
         for older in live.dropLast() {
             older.status = "missed"
             older.deliveredVia = "merged with the \(hm(minutesOfDay(latest.scheduledAt))) cue"
@@ -104,6 +135,7 @@ final class CueDispatcher {
 
         guard services.haptics.isRingConnected else {
             latest.attempts += 1
+            logWake(trigger, "cue due but ring not connected (try \(latest.attempts))")
             if latest.attempts >= Self.maxAttempts {
                 latest.status = "missed"
                 latest.deliveredVia = "ring not connected after \(Self.maxAttempts) tries"
@@ -131,6 +163,7 @@ final class CueDispatcher {
         event.delaySeconds = max(0, Int(now.timeIntervalSince(event.scheduledAt)))
         event.deliveredVia = trigger.rawValue
         try? context.save()
+        logWake(trigger, "SENT to ring · \(event.delaySeconds! / 60) min late")
 
         // Ask iOS for enough background time to send the whole sequence.
         let token = BackgroundTime.begin(name: "emotion.cue")

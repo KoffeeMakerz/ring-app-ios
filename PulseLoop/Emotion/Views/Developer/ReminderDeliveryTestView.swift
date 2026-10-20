@@ -1,6 +1,7 @@
 #if DEBUG
 import SwiftData
 import SwiftUI
+import UIKit
 import UserNotifications
 
 /// Developer-only (debug builds): checks how reminder cues actually reach a real ring on this
@@ -11,6 +12,7 @@ struct ReminderDeliveryTestView: View {
     @Query(sort: \ReminderEvent.scheduledAt, order: .reverse) private var events: [ReminderEvent]
     @Query(sort: \Experience.createdAt, order: .reverse) private var experiences: [Experience]
 
+    @State private var notif = NotificationDiagnostics()
     private var recent: [ReminderEvent] { Array(events.filter { $0.scheduledAt <= Date().addingTimeInterval(3600) }.prefix(40)) }
     private var tests: [ReminderEvent] { events.filter(\.isTest) }
 
@@ -18,6 +20,7 @@ struct ReminderDeliveryTestView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
                 statusCard
+                notificationCard
                 SectionLabel("Test")
                 VStack(spacing: 8) {
                     Button("Schedule test cues in 2, 5 and 10 min") { scheduleTests() }
@@ -52,11 +55,55 @@ struct ReminderDeliveryTestView: View {
                     }
                 }
                 .padding(.horizontal, 16).eCard(radius: 18)
+
+                HStack {
+                    SectionLabel("Wake log")
+                    Spacer()
+                    Button("Clear") { services.dispatcher?.clearWakeLog() }.buttonStyle(TextLinkButtonStyle())
+                }
+                .padding(.top, 4)
+                Text("Every time iOS let the app check for cues. Entries marked “background/locked” prove the ring woke the app while the phone was locked.")
+                    .font(EFont.body(12)).foregroundStyle(EColor.textSecondary)
+                VStack(alignment: .leading, spacing: 6) {
+                    let log = services.dispatcher?.wakeLog ?? []
+                    if log.isEmpty { Text("No wakes logged yet").font(EFont.body(13)).foregroundStyle(EColor.textSecondary) }
+                    ForEach(Array(log.prefix(30).enumerated()), id: \.offset) { _, line in
+                        Text(line).font(EFont.mono(11))
+                            .foregroundStyle(line.contains("background") ? EColor.success : line.contains("SENT") ? EColor.text : EColor.textSecondary)
+                    }
+                }
+                .padding(16).frame(maxWidth: .infinity, alignment: .leading).eCard(radius: 18)
             }
             .padding(.horizontal, 20).padding(.bottom, 32)
         }
         .emotionScreen()
         .navigationTitle("Reminder delivery test").navigationBarTitleDisplayMode(.inline)
+        .task { await notif.refresh() }
+        .refreshable { await notif.refresh() }
+    }
+
+    private var notificationCard: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Phone notifications").font(EFont.body(14, .bold))
+            row("Permission", notif.permission)
+            row("Lock screen", notif.lockScreen)
+            row("Style", notif.style)
+            row("Queued", "\(notif.pendingCues) reminder · \(notif.pendingTests) test notifications waiting in iOS")
+            row("Shown", "\(notif.deliveredOurs) of ours currently in Notification Centre")
+            Text("If permission or lock screen isn't “On”, iOS won't show cues while locked. Also check Focus / Sleep mode.")
+                .font(EFont.body(12)).foregroundStyle(EColor.textMuted).padding(.top, 2)
+            HStack(spacing: 8) {
+                if notif.permission == "Not asked yet" {
+                    Button("Ask permission") { ReminderScheduler.requestPermission(); Task { try? await Task.sleep(for: .seconds(2)); await notif.refresh() } }
+                        .buttonStyle(SecondaryButtonStyle(height: 40))
+                }
+                Button("Open iPhone Settings") { if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) } }
+                    .buttonStyle(SecondaryButtonStyle(height: 40))
+                Button("Refresh") { Task { await notif.refresh() } }.buttonStyle(SecondaryButtonStyle(height: 40))
+            }
+            .padding(.top, 4)
+        }
+        .padding(16).frame(maxWidth: .infinity, alignment: .leading).eCard(radius: 18)
     }
 
     private var statusCard: some View {
@@ -113,13 +160,47 @@ struct ReminderDeliveryTestView: View {
             ReminderScheduler.scheduleTestNotification(for: e, experience: exp)
         }
         try? context.save()
+        Task { try? await Task.sleep(for: .milliseconds(500)); await notif.refresh() }
     }
 
     private func clearTests() {
+        defer { Task { await notif.refresh() } }
         let ids = tests.map { "emotion.testcue.\($0.id.uuidString)" }
         UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: ids)
         for e in tests { context.delete(e) }
         try? context.save()
+    }
+}
+
+/// What iOS will do with our notifications, read from the notification centre.
+@MainActor
+@Observable
+final class NotificationDiagnostics {
+    var permission = "…"
+    var lockScreen = "…"
+    var style = "…"
+    var pendingCues = 0
+    var pendingTests = 0
+    var deliveredOurs = 0
+
+    func refresh() async {
+        let center = UNUserNotificationCenter.current()
+        let s = await center.notificationSettings()
+        permission = switch s.authorizationStatus {
+        case .authorized: "On"
+        case .denied: "Off (denied)"
+        case .notDetermined: "Not asked yet"
+        case .provisional: "Provisional (delivered quietly)"
+        case .ephemeral: "Ephemeral"
+        @unknown default: "Unknown"
+        }
+        lockScreen = s.lockScreenSetting == .enabled ? "On" : s.lockScreenSetting == .disabled ? "Off" : "Not supported"
+        style = s.alertStyle == .banner ? "Banners" : s.alertStyle == .alert ? "Alerts" : "None (no banners)"
+        let pending = await center.pendingNotificationRequests()
+        pendingCues = pending.filter { $0.identifier.hasPrefix("emotion.cue.") }.count
+        pendingTests = pending.filter { $0.identifier.hasPrefix("emotion.testcue.") }.count
+        let delivered = await center.deliveredNotifications()
+        deliveredOurs = delivered.filter { $0.request.identifier.hasPrefix("emotion.") }.count
     }
 }
 #endif
