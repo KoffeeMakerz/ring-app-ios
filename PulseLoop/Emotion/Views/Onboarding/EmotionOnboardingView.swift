@@ -48,9 +48,9 @@ struct WelcomeView: View {
     @Environment(\.modelContext) private var context
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text("[APP NAME]").font(EFont.display(18)).padding(.top, 24)
+            KinoraWordmark().padding(.top, 24)
             Spacer()
-            WelcomeRingArt().frame(maxWidth: .infinity)
+            KinoraMark().frame(width: 220, height: 220).frame(maxWidth: .infinity)
             Spacer()
             Text("Feel it.\nThen let your ring remind you.")
                 .font(EFont.display(36)).lineSpacing(2).padding(.bottom, 14)
@@ -65,6 +65,57 @@ struct WelcomeView: View {
         .padding(.horizontal, 28).padding(.bottom, 24)
         .emotionScreen()
         .toolbar(.hidden, for: .navigationBar)
+    }
+}
+
+/// The Kinora mark: a ring (the one you wear, lit like an eclipse) around a four-point star.
+/// Same design as the app icon (docs/brand/kinora-mark.svg).
+struct KinoraMark: View {
+    var body: some View {
+        GeometryReader { geo in
+            let side = min(geo.size.width, geo.size.height)
+            let ring = side * 0.6
+            ZStack {
+                // Light catching the lower-right edge of the ring (-10° to 100°).
+                Circle()
+                    .trim(from: 0, to: 0.305)
+                    .stroke(Color(hex: "#FFC9A6").opacity(0.5), style: StrokeStyle(lineWidth: side * 0.035, lineCap: .round))
+                    .rotationEffect(.degrees(-10))
+                    .frame(width: ring, height: ring).blur(radius: side * 0.025)
+                Circle()
+                    .stroke(LinearGradient(colors: [Color(hex: "#B8805A"), Color(hex: "#E2B48C"), Color(hex: "#FFE3C8")],
+                                           startPoint: .topLeading, endPoint: .bottomTrailing), lineWidth: max(1.5, side * 0.011))
+                    .frame(width: ring, height: ring)
+                Circle().fill(RadialGradient(colors: [Color(hex: "#FFDCBE").opacity(0.5), .clear], center: .center, startRadius: 0, endRadius: side * 0.18))
+                    .frame(width: side * 0.4, height: side * 0.4)
+                FourPointStar().fill(Color(hex: "#FFECD6")).frame(width: side * 0.24, height: side * 0.24)
+            }
+            .frame(width: geo.size.width, height: geo.size.height)
+        }
+        .accessibilityHidden(true)
+    }
+}
+
+struct FourPointStar: Shape {
+    func path(in rect: CGRect) -> Path {
+        let c = CGPoint(x: rect.midX, y: rect.midY), r = min(rect.width, rect.height) / 2, k = r * 0.13
+        var p = Path()
+        p.move(to: CGPoint(x: c.x, y: c.y - r))
+        p.addQuadCurve(to: CGPoint(x: c.x + r, y: c.y), control: CGPoint(x: c.x + k, y: c.y - k))
+        p.addQuadCurve(to: CGPoint(x: c.x, y: c.y + r), control: CGPoint(x: c.x + k, y: c.y + k))
+        p.addQuadCurve(to: CGPoint(x: c.x - r, y: c.y), control: CGPoint(x: c.x - k, y: c.y + k))
+        p.addQuadCurve(to: CGPoint(x: c.x, y: c.y - r), control: CGPoint(x: c.x - k, y: c.y - k))
+        p.closeSubpath()
+        return p
+    }
+}
+
+/// "KINORA" in wide, light capitals.
+struct KinoraWordmark: View {
+    var size: CGFloat = 18
+    var body: some View {
+        Text("KINORA").font(.system(size: size, weight: .light)).tracking(size * 0.45)
+            .accessibilityLabel("Kinora")
     }
 }
 

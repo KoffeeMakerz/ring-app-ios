@@ -72,7 +72,7 @@ struct RingSettingsView: View {
                     Divider().overlay(EColor.line)
                     link("Reminder delivery test (real ring)") { router.push(.deliveryTest) }
                     Divider().overlay(EColor.line)
-                    link("Switch to original PulseLoop UI (button top right brings you back)") {
+                    link("Switch to original health screens (button top right brings you back)") {
                         UserDefaults.standard.set(true, forKey: EmotionServices.legacyUIKey)
                     }
                     Divider().overlay(EColor.line)

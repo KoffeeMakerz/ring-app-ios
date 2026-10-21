@@ -155,7 +155,7 @@ struct SettingsView: View {
         rows.append(SettingsRowItem(icon: "lock.shield", tint: PulseColors.success, title: "Privacy & Data") {
             path.append(AppRoute.settingsPrivacyData)
         })
-        rows.append(SettingsRowItem(icon: "info.circle", tint: PulseColors.textMuted, title: "About PulseLoop") {
+        rows.append(SettingsRowItem(icon: "info.circle", tint: PulseColors.textMuted, title: "About Kinora") {
             path.append(AppRoute.settingsAbout)
         })
         return rows

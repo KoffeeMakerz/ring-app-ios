@@ -198,7 +198,7 @@ struct OnboardingWelcomeView: View {
 
                 Spacer().frame(height: (14 * s).rounded())
 
-                FittedOnboardingHeader(title: "Set up PulseLoop", subtitle: headerSubtitle, s: s)
+                FittedOnboardingHeader(title: "Set up Kinora", subtitle: headerSubtitle, s: s)
 
                 Spacer().frame(height: (16 * s).rounded())
 
@@ -216,7 +216,7 @@ struct OnboardingWelcomeView: View {
         ScrollView {
             VStack(spacing: 18) {
                 logo(size: 92)
-                CompactOnboardingHeader(title: "Set up PulseLoop", subtitle: headerSubtitle)
+                CompactOnboardingHeader(title: "Set up Kinora", subtitle: headerSubtitle)
                 LazyVGrid(columns: columns, spacing: 12) {
                     ForEach(features) { feature in
                         VStack(spacing: 8) {
@@ -441,7 +441,7 @@ struct OnboardingBaselineView: View {
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             OnboardingActionFooter {
-                PrimaryButton(title: "Start using PulseLoop", systemImage: "arrow.right", action: finish)
+                PrimaryButton(title: "Start using Kinora", systemImage: "arrow.right", action: finish)
             }
         }
         .onAppear {
