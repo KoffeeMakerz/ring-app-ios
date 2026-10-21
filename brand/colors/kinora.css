@@ -1,0 +1,18 @@
+:root {
+  --kinora-plum-900: #120B1C;
+  --kinora-plum-800: #1E1230;
+  --kinora-plum-700: #341E48;
+  --kinora-plum-500: #5B3A73;
+  --kinora-gold-700: #B8805A;
+  --kinora-gold-500: #E2B48C;
+  --kinora-gold-300: #FFE3C8;
+  --kinora-star: #FFECD6;
+  --kinora-glow: #FFC9A6;
+  --kinora-rose-300: #D9A7A7;
+  --kinora-blush-100: #F1D9D2;
+  --kinora-cream-50: #F6F0E9;
+  --kinora-ink-900: #3C2428;
+  --kinora-sage-500: #7F9A86;
+  --kinora-gradient-ground: radial-gradient(75% 75% at 50% 42%, #341E48, #120B1C);
+  --kinora-gradient-gold: linear-gradient(135deg, #B8805A, #E2B48C 60%, #FFE3C8);
+}
