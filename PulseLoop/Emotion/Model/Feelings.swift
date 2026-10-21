@@ -327,10 +327,27 @@ struct MusicTrack: Identifiable, Hashable {
         MusicTrack(id: "car-upbeat", title: "Driving (upbeat)", theme: .joy, durationS: 120, cueMarkersS: [38, 48, 88, 98], fileName: "car_upbeat.mp3"),
     ]
 
+    /// 1-minute instrumental practice tracks, one per feeling (ElevenLabs Music v2.5, A=444 retune,
+    /// -16 LUFS). Cue markers = the track's loudest moments, 2-3 per minute. Same list as Android.
+    /// See docs/emotion-app/practice-tracks.md.
+    static let practice: [MusicTrack] = [
+        MusicTrack(id: "practice-gratitude", title: "Quiet Gratitude", theme: .gratitude, durationS: 60, cueMarkersS: [24, 36, 48], fileName: "practice_gratitude.mp3"),
+        MusicTrack(id: "practice-love", title: "Warm Against Time", theme: .love, durationS: 60, cueMarkersS: [14, 32, 48], fileName: "practice_love.mp3"),
+        MusicTrack(id: "practice-joy", title: "Joy in Motion", theme: .joy, durationS: 60, cueMarkersS: [18, 34, 46], fileName: "practice_joy.mp3"),
+        MusicTrack(id: "practice-bliss", title: "Radiant Drift", theme: .business, durationS: 60, cueMarkersS: [16, 26, 38], fileName: "practice_bliss.mp3"),
+        MusicTrack(id: "practice-calm", title: "Still Water Breath", theme: .health, durationS: 60, cueMarkersS: [16, 26, 42], fileName: "practice_calm.mp3"),
+        MusicTrack(id: "practice-confidence", title: "Unshakable Rise", theme: .abundance, durationS: 60, cueMarkersS: [18, 38, 48], fileName: "practice_confidence.mp3"),
+    ]
+
     /// Only real songs now (the placeholder tracks are gone). Experiences saved with a placeholder
-    /// track fall back to their feeling's default song.
+    /// track fall back to their feeling's default song. Practice tracks aren't in the song lists.
     static let catalog: [MusicTrack] = songs
-    static func byID(_ id: String?) -> MusicTrack? { catalog.first { $0.id == id } }
+    static func byID(_ id: String?) -> MusicTrack? { (catalog + practice).first { $0.id == id } }
+    /// The 1-minute track a feeling's practice session starts with.
+    static func practice(for feeling: Feeling) -> MusicTrack {
+        byID("practice-\(feeling.rawValue)") ?? `default`(for: feeling)
+    }
+    var isPractice: Bool { id.hasPrefix("practice-") }
     static func `default`(for feeling: Feeling) -> MusicTrack {
         let id = switch feeling {
         case .gratitude: "home-chill"
@@ -348,7 +365,7 @@ struct MusicTrack: Identifiable, Hashable {
     /// "Home" for "Home (chill)".
     var songName: String { title.components(separatedBy: " (").first ?? title }
     /// "Chill" or "Upbeat".
-    var version: String { id.hasSuffix("upbeat") ? "Upbeat" : "Chill" }
+    var version: String { isPractice ? "Practice" : id.hasSuffix("upbeat") ? "Upbeat" : "Chill" }
     /// What the song is about.
     var about: String { SongGroup.about[songKey] ?? theme.name }
     var durationLabel: String { "\(durationS / 60):\(String(format: "%02d", durationS % 60))" }

@@ -55,3 +55,7 @@ CLAUDE.md
 AGENT.md
 # Strava API credentials (developer-local, see StravaSecrets.swift)
 PulseLoop/Integrations/Strava/StravaSecrets.plist
+
+# raw/finished practice-track working files
+scripts/songs/practice-raw/
+scripts/songs/practice-out/

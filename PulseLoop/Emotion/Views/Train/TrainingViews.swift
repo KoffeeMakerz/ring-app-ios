@@ -69,7 +69,7 @@ struct TrainIntroView: View {
         self.feeling = feeling
         self.onboarding = onboarding
         self.onContinue = onContinue
-        _track = State(initialValue: MusicTrack.default(for: feeling))
+        _track = State(initialValue: MusicTrack.practice(for: feeling))
     }
 
     var sessionNumber: Int { min(Feeling.programmeLength, FeelingProgress.sessions(feeling, records) + 1) }
@@ -91,7 +91,7 @@ struct TrainIntroView: View {
             .buttonStyle(.plain).accessibilityLabel("Play guide video")
             VStack(alignment: .leading, spacing: 14) {
                 stepRow(1, "Settle in · 1 min", "Slow breaths to relax and focus.")
-                stepRow(2, "Feel it with music · 4 min", "When the feeling peaks, your ring plays the \(feeling.name.lowercased()) rhythm.")
+                stepRow(2, "Feel it with music · \(max(1, track.durationS / 60)) min", "When the feeling peaks, your ring plays the \(feeling.name.lowercased()) rhythm.")
                 stepRow(3, "Check in · 30 s", "Rate how strongly the rhythm brought the feeling back.")
             }
             .padding(.top, 22)
@@ -140,6 +140,31 @@ struct TrackPickerSheet: View {
     var body: some View {
         NavigationStack {
             List {
+                Section {
+                    ForEach(MusicTrack.practice) { track in
+                        HStack(spacing: 12) {
+                            SongPlayButton(track: track, preview: preview)
+                            Button { preview.stop(); selected = track; dismiss() } label: {
+                                HStack {
+                                    VStack(alignment: .leading) {
+                                        Text(track.title).foregroundStyle(EColor.text)
+                                        Text("\(track.durationLabel) · \(track.cueMarkersS.count) ring cues").font(.caption).foregroundStyle(EColor.textSecondary)
+                                    }
+                                    Spacer()
+                                    if track == selected { Image(systemName: "checkmark").foregroundStyle(EColor.accent) }
+                                }
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                } header: {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Practice tracks").font(EFont.body(15, .bold)).foregroundStyle(EColor.text).textCase(nil)
+                        Text("1 minute, made for practising one feeling").font(EFont.body(12)).foregroundStyle(EColor.textSecondary).textCase(nil)
+                    }
+                }
+                .listRowBackground(EColor.card)
                 ForEach(SongGroup.all) { song in
                     Section {
                         ForEach(song.tracks) { track in
@@ -217,7 +242,7 @@ struct TrainingSessionView: View {
             experience = try? context.fetch(FetchDescriptor<Experience>(predicate: #Predicate { $0.id == id })).first
         }
         if let experience { playback = services.playback(for: experience) }
-        else { playback = services.playback(feeling: feeling, track: track ?? MusicTrack.default(for: feeling)) }
+        else { playback = services.playback(feeling: feeling, track: track ?? MusicTrack.practice(for: feeling)) }
     }
 
     private func close(finished: Bool) {
