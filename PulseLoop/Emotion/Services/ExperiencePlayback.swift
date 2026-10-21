@@ -95,8 +95,11 @@ final class ExperiencePlayback {
             while !Task.isCancelled {
                 try? await Task.sleep(for: .milliseconds(200))
                 guard let self else { return }
-                if let player = self.player { self.position = player.currentTime }
-                else { self.position = startPos + Date().timeIntervalSince(startWall) }
+                if let player = self.player {
+                    // AVAudioPlayer rewinds to 0 when the song ends, so "stopped on its own" = finished.
+                    if !player.isPlaying { self.finish(); return }
+                    self.position = player.currentTime
+                } else { self.position = startPos + Date().timeIntervalSince(startWall) }
                 self.checkCues()
                 if self.position >= self.duration { self.finish(); return }
             }

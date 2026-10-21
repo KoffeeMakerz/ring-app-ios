@@ -1,3 +1,4 @@
+import AVFoundation
 import Photos
 import SwiftData
 import SwiftUI
@@ -5,7 +6,8 @@ import UIKit
 
 struct LibraryView: View {
     @Environment(EmotionRouter.self) private var router
-    @State private var theme: MusicTheme = .abundance
+    @State private var segment = 0
+    @State private var preview = SongPreview.shared
     @Query(sort: \Experience.createdAt, order: .reverse) private var experiences: [Experience]
 
     var body: some View {
@@ -20,26 +22,12 @@ struct LibraryView: View {
                     }
                 }
                 .padding(.top, 8)
-                // "My music" is coming soon: shown but not selectable yet.
-                HStack(spacing: 4) {
-                    Text("My experiences").font(EFont.body(14, .semibold))
-                        .frame(maxWidth: .infinity).frame(height: 34)
-                        .background(EColor.cardRaised, in: RoundedRectangle(cornerRadius: 9))
-                        .accessibilityAddTraits(.isSelected)
-                    HStack(spacing: 6) {
-                        Text("My music").font(EFont.body(14, .semibold))
-                        Text("Soon").font(EFont.body(11, .bold)).foregroundStyle(EColor.onAccent)
-                            .padding(.horizontal, 6).padding(.vertical, 2).background(EColor.textMuted, in: Capsule())
-                    }
-                    .foregroundStyle(EColor.textMuted)
-                    .frame(maxWidth: .infinity).frame(height: 34)
-                    .accessibilityElement(children: .ignore)
-                    .accessibilityLabel("My music, coming soon")
-                    .accessibilityAddTraits(.isStaticText)
+                Picker("Show", selection: $segment) {
+                    Text("My experiences").tag(0)
+                    Text("Songs").tag(1)
                 }
-                .padding(3)
-                .background(EColor.card, in: RoundedRectangle(cornerRadius: 11))
-                mine
+                .pickerStyle(.segmented)
+                if segment == 0 { mine } else { songs }
             }
             .padding(.horizontal, 20).padding(.bottom, 32)
         }
@@ -47,42 +35,45 @@ struct LibraryView: View {
         .toolbar(.hidden, for: .navigationBar)
     }
 
-    /// Music library, shown again as "My music" once songs are ready.
-    private var explore: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            EFlowChips(items: MusicTheme.allCases) { t in
-                Chip(title: t.name, dot: t.color, selected: t == theme, selectedColor: t.color) { theme = t }
-            }
-            SectionLabel("Feel-good tracks · \(theme.name)")
-            ForEach(MusicTrack.catalog.filter { $0.theme == theme }) { track in
-                Button {
-                    let feeling = Feeling.allCases.first { MusicTrack.default(for: $0).theme == theme } ?? .gratitude
-                    router.training = TrainingRequest(feeling: feeling, experienceID: nil)
-                } label: {
-                    HStack(spacing: 14) {
-                        RoundedRectangle(cornerRadius: 12).fill(theme.art).frame(width: 56, height: 56)
+    /// The feel-good songs, each with its chill and upbeat version (not grouped by emotion:
+    /// a song like "Home" carries joy and gratitude at once).
+    private var songs: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            ForEach(SongGroup.all) { song in
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack(spacing: 12) {
+                        RoundedRectangle(cornerRadius: 12).fill(song.art).frame(width: 48, height: 48)
+                            .overlay(Image(systemName: "music.note").foregroundStyle(song.color))
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(track.title).font(EFont.body(15, .semibold))
-                            Text("\(theme.name) · \(track.durationLabel) · \(track.cueMarkersS.count) ring cues").font(EFont.body(13)).foregroundStyle(EColor.textSecondary)
+                            Text(song.name).font(EFont.body(16, .bold))
+                            Text(song.about).font(EFont.body(13)).foregroundStyle(EColor.textSecondary)
                         }
-                        Spacer()
-                        Image(systemName: "chevron.right").foregroundStyle(EColor.textMuted)
                     }
-                    .padding(10).eCard(radius: 18)
+                    ForEach(song.tracks) { track in
+                        HStack(spacing: 12) {
+                            SongPlayButton(track: track, preview: preview)
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(track.version).font(EFont.body(14, .semibold))
+                                Text("\(track.durationLabel) · \(track.cueMarkersS.count) ring cues").font(EFont.body(12)).foregroundStyle(EColor.textSecondary)
+                            }
+                            Spacer()
+                        }
+                    }
                 }
-                .buttonStyle(.plain)
+                .padding(14).frame(maxWidth: .infinity, alignment: .leading).eCard(radius: 18)
             }
             HStack(spacing: 14) {
                 Image(systemName: "music.note").font(.system(size: 24)).foregroundStyle(Color(hex: "#B892FF"))
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Make a song for your feeling").font(EFont.body(15, .semibold))
-                    Text("AI music generation · coming later").font(EFont.body(13)).foregroundStyle(EColor.textSecondary)
+                    Text("Make a song for your own vision").font(EFont.body(15, .semibold))
+                    Text("My music · coming later").font(EFont.body(13)).foregroundStyle(EColor.textSecondary)
                 }
             }
             .padding(16).frame(maxWidth: .infinity, alignment: .leading)
             .background(Color(hex: "#17131F"), in: RoundedRectangle(cornerRadius: 20))
             .overlay(RoundedRectangle(cornerRadius: 20).strokeBorder(Color(hex: "#4A4160"), style: StrokeStyle(lineWidth: 1, dash: [5, 4])))
         }
+        .onDisappear { preview.stop() }
     }
 
     @ViewBuilder private var mine: some View {
@@ -389,5 +380,48 @@ struct VisionTemplateRow: View {
         }
         .buttonStyle(.plain)
         .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+}
+
+// MARK: Song preview
+
+/// Plays one bundled song at a time for previews in the music lists.
+@MainActor
+@Observable
+final class SongPreview {
+    static let shared = SongPreview()
+    private(set) var playingID: String?
+    private var player: AVAudioPlayer?
+
+    func toggle(_ track: MusicTrack) {
+        if playingID == track.id { stop(); return }
+        stop()
+        guard let name = track.fileName, let url = Bundle.main.url(forResource: name, withExtension: nil) else { return }
+        try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .default)
+        try? AVAudioSession.sharedInstance().setActive(true)
+        player = try? AVAudioPlayer(contentsOf: url)
+        player?.play()
+        playingID = player == nil ? nil : track.id
+    }
+
+    func stop() {
+        player?.stop()
+        player = nil
+        playingID = nil
+    }
+}
+
+struct SongPlayButton: View {
+    let track: MusicTrack
+    let preview: SongPreview
+    var body: some View {
+        let playing = preview.playingID == track.id
+        Button { preview.toggle(track) } label: {
+            Image(systemName: playing ? "stop.fill" : "play.fill").font(.system(size: 14))
+                .foregroundStyle(EColor.onAccent).frame(width: 36, height: 36)
+                .background(track.theme.color, in: Circle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(playing ? "Stop \(track.title)" : "Play \(track.title)")
     }
 }

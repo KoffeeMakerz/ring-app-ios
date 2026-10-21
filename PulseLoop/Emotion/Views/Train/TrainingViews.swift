@@ -99,7 +99,7 @@ struct TrainIntroView: View {
                 RoundedRectangle(cornerRadius: 10).fill(track.theme.art).frame(width: 44, height: 44)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(track.title).font(EFont.body(14, .semibold))
-                    Text("\(track.theme.name) · \(track.durationLabel) · \(track.cueMarkersS.count) ring cues").font(EFont.body(12)).foregroundStyle(EColor.textSecondary)
+                    Text("\(track.version) · \(track.durationLabel) · \(track.cueMarkersS.count) ring cues").font(EFont.body(12)).foregroundStyle(EColor.textSecondary)
                 }
                 Spacer()
                 Button("Change") { showTrackPicker = true }.buttonStyle(TextLinkButtonStyle())
@@ -136,23 +136,33 @@ struct TrainIntroView: View {
 struct TrackPickerSheet: View {
     @Binding var selected: MusicTrack
     @Environment(\.dismiss) private var dismiss
+    @State private var preview = SongPreview.shared
     var body: some View {
         NavigationStack {
             List {
-                ForEach(MusicTheme.allCases) { theme in
-                    Section(theme.name) {
-                        ForEach(MusicTrack.catalog.filter { $0.theme == theme }) { track in
-                            Button { selected = track; dismiss() } label: {
-                                HStack {
-                                    RoundedRectangle(cornerRadius: 8).fill(theme.art).frame(width: 36, height: 36)
-                                    VStack(alignment: .leading) {
-                                        Text(track.title).foregroundStyle(EColor.text)
-                                        Text("\(track.durationLabel) · \(track.cueMarkersS.count) ring cues").font(.caption).foregroundStyle(EColor.textSecondary)
+                ForEach(SongGroup.all) { song in
+                    Section {
+                        ForEach(song.tracks) { track in
+                            HStack(spacing: 12) {
+                                SongPlayButton(track: track, preview: preview)
+                                Button { preview.stop(); selected = track; dismiss() } label: {
+                                    HStack {
+                                        VStack(alignment: .leading) {
+                                            Text(track.version).foregroundStyle(EColor.text)
+                                            Text("\(track.durationLabel) · \(track.cueMarkersS.count) ring cues").font(.caption).foregroundStyle(EColor.textSecondary)
+                                        }
+                                        Spacer()
+                                        if track == selected { Image(systemName: "checkmark").foregroundStyle(EColor.accent) }
                                     }
-                                    Spacer()
-                                    if track == selected { Image(systemName: "checkmark").foregroundStyle(EColor.accent) }
+                                    .contentShape(Rectangle())
                                 }
+                                .buttonStyle(.plain)
                             }
+                        }
+                    } header: {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(song.name).font(EFont.body(15, .bold)).foregroundStyle(EColor.text).textCase(nil)
+                            Text(song.about).font(EFont.body(12)).foregroundStyle(EColor.textSecondary).textCase(nil)
                         }
                     }
                     .listRowBackground(EColor.card)
@@ -160,8 +170,9 @@ struct TrackPickerSheet: View {
             }
             .scrollContentBackground(.hidden)
             .navigationTitle("Music")
-            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() } } }
+            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Close") { preview.stop(); dismiss() } } }
             .emotionScreen()
+            .onDisappear { preview.stop() }
         }
     }
 }

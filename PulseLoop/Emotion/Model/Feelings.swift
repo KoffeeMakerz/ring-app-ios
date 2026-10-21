@@ -257,15 +257,17 @@ struct VisionTemplate: Identifiable, Hashable {
     let feelings: [Feeling]
     let theme: MusicTheme
     let tile: Color
+    /// The song this vision starts with.
+    var trackID: String = ""
 
     static let all: [VisionTemplate] = [
-        .init(id: "home", title: "My dream home", points: ["The keys are in my hand", "Morning light fills our kitchen", "A garden where the people I love gather"], feelings: [.joy, .gratitude], theme: .gratitude, tile: Color(hex: "#4A3418")),
-        .init(id: "money", title: "Financial freedom", points: ["The money is in my account", "I give generously and easily", "I choose how I spend my days"], feelings: [.joy, .confidence, .gratitude], theme: .abundance, tile: Color(hex: "#1E3A2C")),
-        .init(id: "love", title: "A loving relationship", points: ["We laugh together every day", "I feel completely seen and safe", "We build our life side by side"], feelings: [.love, .gratitude], theme: .love, tile: Color(hex: "#3F1C28")),
-        .init(id: "business", title: "My business thriving", points: ["Clients come to me easily", "My team loves the work we do", "We grow every month"], feelings: [.confidence, .joy], theme: .business, tile: Color(hex: "#1C2B40")),
-        .init(id: "health", title: "Vibrant health", points: ["I wake up full of energy", "My body feels strong and light", "I move with ease every day"], feelings: [.calm, .gratitude], theme: .health, tile: Color(hex: "#2D2245")),
+        .init(id: "home", title: "My dream home", points: ["The keys are in my hand", "Morning light fills our kitchen", "A garden where the people I love gather"], feelings: [.joy, .gratitude], theme: .gratitude, tile: Color(hex: "#4A3418"), trackID: "home-chill"),
+        .init(id: "money", title: "Financial freedom", points: ["The money is in my account", "I give generously and easily", "I choose how I spend my days"], feelings: [.joy, .confidence, .gratitude], theme: .abundance, tile: Color(hex: "#1E3A2C"), trackID: "abundance-upbeat"),
+        .init(id: "love", title: "A loving relationship", points: ["We laugh together every day", "I feel completely seen and safe", "We build our life side by side"], feelings: [.love, .gratitude], theme: .love, tile: Color(hex: "#3F1C28"), trackID: "together-chill"),
+        .init(id: "business", title: "My business thriving", points: ["Clients come to me easily", "My team loves the work we do", "We grow every month"], feelings: [.confidence, .joy], theme: .business, tile: Color(hex: "#1C2B40"), trackID: "car-upbeat"),
+        .init(id: "health", title: "Vibrant health", points: ["I wake up full of energy", "My body feels strong and light", "I move with ease every day"], feelings: [.calm, .gratitude], theme: .health, tile: Color(hex: "#2D2245"), trackID: "freedom-chill"),
     ]
-    var track: MusicTrack { MusicTrack.catalog.first { $0.theme == theme } ?? MusicTrack.default(for: feelings[0]) }
+    var track: MusicTrack { MusicTrack.byID(trackID) ?? MusicTrack.default(for: feelings[0]) }
 }
 
 /// Music themes for the curated library.
@@ -295,8 +297,8 @@ enum MusicTheme: String, CaseIterable, Identifiable {
     }
 }
 
-/// A curated track. Real songs (team-made with ElevenLabs) are dropped into the bundle or CDN;
-/// until then `fileName` is nil and the player runs on a silent clock.
+/// A curated track. Songs made with ElevenLabs live in PulseLoop/Emotion/Music (`fileName`, bundled
+/// automatically); tracks without a file run on a silent clock.
 struct MusicTrack: Identifiable, Hashable {
     let id: String
     let title: String
@@ -306,25 +308,77 @@ struct MusicTrack: Identifiable, Hashable {
     let cueMarkersS: [Int]
     var fileName: String? = nil
 
-    static let catalog: [MusicTrack] = MusicTheme.allCases.flatMap { theme in
-        (1...3).map { i in
-            let len = 210 + i * 25
-            return MusicTrack(id: "\(theme.rawValue)-\(i)", title: "[\(theme.name) track \(i)]", theme: theme,
-                              durationS: len, cueMarkersS: stride(from: 38, to: len - 10, by: 42).map { $0 })
-        }
-    }
+    /// Real songs, listed before the placeholders so a theme's default is a real song.
+    /// Same list as Android `MusicTrack.songs`. Finishing: scripts/songs/finish_song.py.
+    static let songs: [MusicTrack] = [
+        // Cue markers = the choruses, estimated from each song's own timing. Order matters:
+        // the first song of a theme is that theme's default.
+        MusicTrack(id: "home-chill", title: "Home (chill)", theme: .gratitude, durationS: 180, cueMarkersS: [53, 63, 127, 137], fileName: "home_chill.mp3"),
+        MusicTrack(id: "home-upbeat", title: "Home (upbeat)", theme: .gratitude, durationS: 180, cueMarkersS: [44, 54, 122, 132], fileName: "home_upbeat.mp3"),
+        MusicTrack(id: "partner-chill", title: "You're Here (chill)", theme: .love, durationS: 120, cueMarkersS: [38, 48, 88, 98], fileName: "partner_chill.mp3"),
+        MusicTrack(id: "partner-upbeat", title: "You're Here (upbeat)", theme: .love, durationS: 120, cueMarkersS: [36, 46, 88, 98], fileName: "partner_upbeat.mp3"),
+        MusicTrack(id: "together-chill", title: "Together (chill)", theme: .love, durationS: 120, cueMarkersS: [34, 44, 84, 94], fileName: "together_chill.mp3"),
+        MusicTrack(id: "together-upbeat", title: "Together (upbeat)", theme: .love, durationS: 110, cueMarkersS: [34, 44, 82, 92], fileName: "together_upbeat.mp3"),
+        MusicTrack(id: "abundance-chill", title: "Flowing (chill)", theme: .abundance, durationS: 120, cueMarkersS: [38, 48, 88, 98], fileName: "abundance_chill.mp3"),
+        MusicTrack(id: "abundance-upbeat", title: "Flowing (upbeat)", theme: .abundance, durationS: 120, cueMarkersS: [38, 48, 88, 98], fileName: "abundance_upbeat.mp3"),
+        MusicTrack(id: "freedom-chill", title: "I'm Free (chill)", theme: .joy, durationS: 120, cueMarkersS: [38, 48, 92, 102], fileName: "freedom_chill.mp3"),
+        MusicTrack(id: "freedom-upbeat", title: "I'm Free (upbeat)", theme: .joy, durationS: 120, cueMarkersS: [38, 48, 88, 98], fileName: "freedom_upbeat.mp3"),
+        MusicTrack(id: "car-chill", title: "Driving (chill)", theme: .joy, durationS: 120, cueMarkersS: [38, 48, 88, 98], fileName: "car_chill.mp3"),
+        MusicTrack(id: "car-upbeat", title: "Driving (upbeat)", theme: .joy, durationS: 120, cueMarkersS: [38, 48, 88, 98], fileName: "car_upbeat.mp3"),
+    ]
+
+    /// Only real songs now (the placeholder tracks are gone). Experiences saved with a placeholder
+    /// track fall back to their feeling's default song.
+    static let catalog: [MusicTrack] = songs
     static func byID(_ id: String?) -> MusicTrack? { catalog.first { $0.id == id } }
     static func `default`(for feeling: Feeling) -> MusicTrack {
-        let theme: MusicTheme = switch feeling {
-        case .gratitude: .gratitude
-        case .love: .love
-        case .joy, .bliss: .joy
-        case .calm: .health
-        case .confidence: .business
+        let id = switch feeling {
+        case .gratitude: "home-chill"
+        case .love: "partner-chill"
+        case .joy: "freedom-upbeat"
+        case .bliss: "car-upbeat"
+        case .calm: "abundance-chill"
+        case .confidence: "abundance-upbeat"
         }
-        return catalog.first { $0.theme == theme }!
+        return byID(id) ?? songs[0]
     }
+
+    /// "home" for "home-chill": the song both versions belong to.
+    var songKey: String { String(id.split(separator: "-").first ?? Substring(id)) }
+    /// "Home" for "Home (chill)".
+    var songName: String { title.components(separatedBy: " (").first ?? title }
+    /// "Chill" or "Upbeat".
+    var version: String { id.hasSuffix("upbeat") ? "Upbeat" : "Chill" }
+    /// What the song is about.
+    var about: String { SongGroup.about[songKey] ?? theme.name }
     var durationLabel: String { "\(durationS / 60):\(String(format: "%02d", durationS % 60))" }
+}
+
+/// A song with its chill and upbeat versions, for the music lists (songs aren't grouped by emotion).
+struct SongGroup: Identifiable {
+    let key: String
+    let tracks: [MusicTrack]
+    var id: String { key }
+    var name: String { tracks.first?.songName ?? key }
+    var about: String { SongGroup.about[key] ?? "" }
+    var art: Color { tracks.first?.theme.art ?? EColor.card }
+    var color: Color { tracks.first?.theme.color ?? EColor.accent }
+
+    static let about: [String: String] = [
+        "home": "Your dream home", "partner": "Your dream partner", "together": "Love with a partner · duet",
+        "abundance": "Abundance flowing to you", "freedom": "Freedom", "car": "Your dream car",
+    ]
+
+    /// Songs in catalog order, each with its versions.
+    static var all: [SongGroup] {
+        var order: [String] = []
+        var byKey: [String: [MusicTrack]] = [:]
+        for t in MusicTrack.catalog {
+            if byKey[t.songKey] == nil { order.append(t.songKey) }
+            byKey[t.songKey, default: []].append(t)
+        }
+        return order.map { SongGroup(key: $0, tracks: byKey[$0] ?? []) }
+    }
 }
 
 /// Built-in image sets. Images live in Assets.xcassets/Slideshow (mirrored in Android res/drawable-nodpi).
