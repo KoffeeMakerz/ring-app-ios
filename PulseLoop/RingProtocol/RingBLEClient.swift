@@ -110,6 +110,13 @@ final class RingBLEClient: NSObject {
     private(set) var activeDeviceType: RingDeviceType?
     private(set) var activeWearableModelID: String?
     var activeWearableModel: WearableModel? { WearableModel.model(id: activeWearableModelID) }
+    /// The name the connected ring itself advertises (e.g. "R09_5A1C"): what it's called in Bluetooth
+    /// settings and in the ring's own app. nil when not connected.
+    var connectedDeviceName: String? {
+        guard state == .connected else { return nil }
+        let name = activeAdvertisedName ?? peripheral?.name
+        return (name?.isEmpty ?? true) ? nil : name
+    }
     /// What the active device can do — the single source the capability-gated UI consults.
     private(set) var activeCapabilities: Set<WearableCapability> = []
 

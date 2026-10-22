@@ -18,6 +18,9 @@ struct RingSettingsView: View {
                         Circle().strokeBorder(services.haptics.usesSimulator ? EColor.debug : EColor.text, lineWidth: 7).frame(width: 48, height: 48)
                         VStack(alignment: .leading, spacing: 2) {
                             Text(services.haptics.ringName).font(EFont.body(16, .bold))
+                            if let device = services.haptics.ringDeviceName {
+                                Text(device).font(EFont.body(12)).foregroundStyle(EColor.textMuted)
+                            }
                             HStack(spacing: 6) {
                                 Circle().fill(services.haptics.isRingConnected ? EColor.success : EColor.warning).frame(width: 8, height: 8)
                                 Text(services.haptics.isRingConnected ? "Connected · \(services.haptics.batteryPercent.map { "\($0)%" } ?? "—")" : "Not connected")

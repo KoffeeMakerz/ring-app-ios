@@ -22,9 +22,19 @@ final class RingHapticsService {
 
     var isRingConnected: Bool { usesSimulator ? simulator.connected : client.state == .connected }
 
+    /// What kind of ring it is: the model ("Colmi R09"), else the family, else the ring's own name.
     var ringName: String {
         if usesSimulator { return "Simulated ring" }
-        return client.activeWearableModel?.displayName ?? "Your ring"
+        return client.activeWearableModel?.displayName
+            ?? client.activeDeviceType?.displayName
+            ?? client.connectedDeviceName
+            ?? "Your ring"
+    }
+
+    /// The ring's own Bluetooth name, shown small under `ringName` when it adds something.
+    var ringDeviceName: String? {
+        guard !usesSimulator, let name = client.connectedDeviceName, name != ringName else { return nil }
+        return name
     }
 
     var batteryPercent: Int? { usesSimulator ? simulator.batteryPercent : client.batteryPercent }

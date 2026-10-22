@@ -573,6 +573,12 @@ struct PairingView: View {
                     .font(.headline)
                     .foregroundStyle(PulseColors.textPrimary)
             }
+            if let device = ble.connectedDeviceName,
+               device != (ble.activeWearableModel?.displayName ?? ble.activeDeviceType?.displayName) {
+                Text(device)
+                    .font(.caption)
+                    .foregroundStyle(PulseColors.textMuted)
+            }
             if let onSkip {
                 PrimaryButton(title: "Continue", systemImage: "checkmark", action: onSkip)
             }
