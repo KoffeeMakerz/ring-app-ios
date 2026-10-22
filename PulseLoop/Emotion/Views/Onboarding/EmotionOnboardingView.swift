@@ -261,7 +261,7 @@ struct PairRingScreen: View {
                     Circle().strokeBorder(EColor.text, lineWidth: 5).frame(width: 36, height: 36)
                     VStack(alignment: .leading, spacing: 2) {
                         Text(ble.state == .connected ? services.haptics.ringName : "Find my ring").font(EFont.body(15, .semibold))
-                        Text(ble.state == .connected ? "Connected · \(ble.batteryPercent.map { "\($0)%" } ?? "—")" : "Scan for nearby rings").font(EFont.body(13)).foregroundStyle(EColor.textSecondary)
+                        Text(ble.state == .connected ? "Connected · \(ble.batteryPercent.map { "\($0)%" } ?? "—") · tap to change" : "Scan for nearby rings").font(EFont.body(13)).foregroundStyle(EColor.textSecondary)
                     }
                     Spacer()
                     Image(systemName: "chevron.right").foregroundStyle(EColor.textMuted)

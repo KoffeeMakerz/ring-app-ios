@@ -51,6 +51,9 @@ struct PairingView: View {
     @State private var pickedVariant: RingAppVariant?
     /// The ring the user last tapped, so the wrong-variant recovery can re-dial the same one.
     @State private var lastAttemptedRingID: UUID?
+    /// "Connect a different ring": the current ring was dropped to scan for others. If the user leaves
+    /// without connecting a new one, the old ring is reconnected on the way out.
+    @State private var isSwitching = false
 
     private static let allBrandsTab = "All"
     private let allModels = WearableModel.catalog
@@ -152,7 +155,12 @@ struct PairingView: View {
                     onConnected?()
                 }
             }
-            .onDisappear { isLooking = false; ble.stopScanning() } // reset so a re-appear doesn't show a frozen scan
+            .onDisappear {
+                isLooking = false
+                ble.stopScanning() // reset so a re-appear doesn't show a frozen scan
+                if isSwitching, ble.state != .connected { ble.connectLastKnown() } // left without a new ring
+                isSwitching = false
+            }
     }
 
     /// Wraps the scroll content with a glass back button + hidden nav bar when pushed
@@ -568,11 +576,37 @@ struct PairingView: View {
             if let onSkip {
                 PrimaryButton(title: "Continue", systemImage: "checkmark", action: onSkip)
             }
+            SecondaryButton(title: "Connect a different ring", systemImage: "arrow.triangle.2.circlepath") {
+                switchRing()
+            }
+            Text("Your current ring disconnects while we look for others nearby. If you don't pick a new one, it reconnects when you leave.")
+                .font(.caption)
+                .foregroundStyle(PulseColors.textMuted)
+                .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 12)
         .onAppear {
             connectedAppeared = true // §6 triggers success ring scale/fade animation
+        }
+    }
+
+    /// Drop the current ring and scan for others. A connected ring can't be scanned alongside (the
+    /// client's state machine owns one link), and a connected ring stops advertising anyway.
+    private func switchRing() {
+        isSwitching = true
+        didFireConnected = false
+        connectedAppeared = false
+        ble.disconnect() // clears autoReconnect, so the drop doesn't re-dial the old ring
+        Task { @MainActor in
+            // Wait for the link to actually drop before scanning: startScanning re-arms autoReconnect,
+            // and a late didDisconnect would otherwise reconnect the old ring.
+            for _ in 0..<40 where ble.state == .connected || ble.state == .reconnecting {
+                try? await Task.sleep(for: .milliseconds(100))
+            }
+            isLooking = true
+            successHaptic.prepare()
+            ble.startScanning()
         }
     }
 
