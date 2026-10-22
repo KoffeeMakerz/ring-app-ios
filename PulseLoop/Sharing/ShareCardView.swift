@@ -296,7 +296,7 @@ struct ShareCardView: View {
                 .resizable()
                 .frame(width: 22, height: 22)
                 .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-            Text("Kinora")
+            Text("Kinnora")
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(PulseColors.textPrimary)
             Spacer()

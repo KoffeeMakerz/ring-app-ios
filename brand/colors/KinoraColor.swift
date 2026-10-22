@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Kinora brand colours (brand/colors/tokens.json).
+/// Kinnora brand colours (brand/colors/tokens.json).
 enum KinoraColor {
     static let plum900 = Color(red: 0.071, green: 0.043, blue: 0.110) // #120B1C
     static let plum800 = Color(red: 0.118, green: 0.071, blue: 0.188) // #1E1230

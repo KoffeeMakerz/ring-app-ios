@@ -2,7 +2,7 @@ package com.pulseloop.brand
 
 import androidx.compose.ui.graphics.Color
 
-/** Kinora brand colours (brand/colors/tokens.json). */
+/** Kinnora brand colours (brand/colors/tokens.json). */
 object KinoraColor {
     val plum900 = Color(0xFF120B1C)
     val plum800 = Color(0xFF1E1230)

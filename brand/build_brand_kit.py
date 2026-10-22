@@ -1,4 +1,4 @@
-"""Builds the Kinora brand kit: SVG logos (wordmark as outlined paths), PNG renders, icons,
+"""Builds the Kinnora brand kit: SVG logos (wordmark as outlined paths), PNG renders, icons,
 colour tokens. Run: python3 build.py  (needs fontTools, Pillow, playwright+chromium)."""
 import json, os, shutil
 from fontTools.ttLib import TTFont
@@ -79,7 +79,7 @@ files['logo/kinora-mark-white-mono.svg'] = svg(1024, 1024, mark(512, 512, 307, '
 
 # --- lockups (wordmark as outlined paths)
 def wordmark(color, size, cx, baseline):
-    d, w = text_path('KINORA', size)
+    d, w = text_path('KINNORA', size)
     return f'<path d="{d}" fill="{color}" transform="translate({cx - w/2:.1f},{baseline})"/>', w
 
 def tagline(color, size, cx, baseline, text='FEEL  ·  ALIGN  ·  BECOME'):
@@ -96,19 +96,19 @@ for variant, bgfill, ink, tag, uid, glow, mono in [
     files[f'logo/kinora-logo-stacked-{variant}.svg'] = svg(W, H, body, uid, 16)
     # horizontal lockup, transparent
     W2, H2 = 1400, 360
-    d, w = text_path('KINORA', 120)
+    d, w = text_path('KINNORA', 120)
     x0 = 360
     body2 = mark(180, 180, 130, uid + 'h', glow=glow, mono=mono) + f'<path d="{d}" fill="{ink}" transform="translate({x0},{180 + 120*0.36:.1f})"/>'
     files[f'logo/kinora-logo-horizontal-{variant}.svg'] = svg(int(x0 + w + 60), H2, body2, uid + 'h', 12)
     # wordmark only
-    d3, w3 = text_path('KINORA', 200)
+    d3, w3 = text_path('KINNORA', 200)
     files[f'logo/kinora-wordmark-{variant}.svg'] = svg(int(w3 + 40), 240, f'<path d="{d3}" fill="{ink}" transform="translate(20,{200*0.86:.0f})"/>', uid + 'w', 10)
 
 for k, v in files.items(): write(f'{OUT}/{k}', v)
 
 # --- colour tokens
 tokens = {
-    'brand': {'name': 'Kinora', 'tagline': 'Feel · Align · Become'},
+    'brand': {'name': 'Kinnora', 'tagline': 'Feel · Align · Become'},
     'color': {
         'plum': {'900': C['plum-900'], '800': C['plum-800'], '700': C['plum-700'], '500': C['plum-500']},
         'gold': {'700': C['gold-700'], '500': C['gold-500'], '300': C['gold-300']},
@@ -128,11 +128,11 @@ css = ':root {\n' + ''.join(f'  --kinora-{k}: {v};\n' for k, v in C.items()) + \
 write(f'{OUT}/colors/kinora.css', css)
 def camel(k):
     a, *b = k.split('-'); return a + ''.join(x.capitalize() for x in b)
-swift = ('import SwiftUI\n\n/// Kinora brand colours (brand/colors/tokens.json).\nenum KinoraColor {\n'
+swift = ('import SwiftUI\n\n/// Kinnora brand colours (brand/colors/tokens.json).\nenum KinoraColor {\n'
          + ''.join(f'    static let {camel(k)} = Color(red: {int(v[1:3],16)/255:.3f}, green: {int(v[3:5],16)/255:.3f}, blue: {int(v[5:7],16)/255:.3f}) // {v}\n' for k, v in C.items())
          + '}\n')
 write(f'{OUT}/colors/KinoraColor.swift', swift)
-kt = ('package com.pulseloop.brand\n\nimport androidx.compose.ui.graphics.Color\n\n/** Kinora brand colours (brand/colors/tokens.json). */\nobject KinoraColor {\n'
+kt = ('package com.pulseloop.brand\n\nimport androidx.compose.ui.graphics.Color\n\n/** Kinnora brand colours (brand/colors/tokens.json). */\nobject KinoraColor {\n'
       + ''.join(f'    val {camel(k)} = Color(0xFF{v[1:].upper()})\n' for k, v in C.items()) + '}\n')
 write(f'{OUT}/colors/KinoraColor.kt', kt)
 

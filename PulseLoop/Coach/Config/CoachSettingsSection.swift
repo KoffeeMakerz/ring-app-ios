@@ -133,7 +133,7 @@ struct CoachSettingsSection: View {
         }
 
         if checkInPermissionDenied {
-            Text("Notifications are off for Kinora. Turn them on in iOS Settings to get check-ins.")
+            Text("Notifications are off for Kinnora. Turn them on in iOS Settings to get check-ins.")
                 .font(.caption)
                 .foregroundStyle(PulseColors.danger)
                 .frame(maxWidth: .infinity, alignment: .leading)

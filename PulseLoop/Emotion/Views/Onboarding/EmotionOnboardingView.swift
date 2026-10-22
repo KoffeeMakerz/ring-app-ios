@@ -68,7 +68,7 @@ struct WelcomeView: View {
     }
 }
 
-/// The Kinora mark: a ring (the one you wear, lit like an eclipse) around a four-point star.
+/// The Kinnora mark: a ring (the one you wear, lit like an eclipse) around a four-point star.
 /// Same design as the app icon (docs/brand/kinora-mark.svg).
 struct KinoraMark: View {
     var body: some View {
@@ -110,12 +110,12 @@ struct FourPointStar: Shape {
     }
 }
 
-/// "KINORA" in wide, light capitals.
+/// "KINNORA" in wide, light capitals.
 struct KinoraWordmark: View {
     var size: CGFloat = 18
     var body: some View {
-        Text("KINORA").font(.system(size: size, weight: .light)).tracking(size * 0.45)
-            .accessibilityLabel("Kinora")
+        Text("KINNORA").font(.system(size: size, weight: .light)).tracking(size * 0.45)
+            .accessibilityLabel("Kinnora")
     }
 }
 

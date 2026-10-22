@@ -91,7 +91,7 @@ struct NotificationsSettingsView: View {
             }
         }
         if notifPermissionDenied {
-            Text("Notifications are disabled for Kinora in iOS Settings.")
+            Text("Notifications are disabled for Kinnora in iOS Settings.")
                 .font(.caption).foregroundStyle(PulseColors.danger)
                 .padding(.horizontal, 4)
         }

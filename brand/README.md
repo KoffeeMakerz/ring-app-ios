@@ -1,12 +1,12 @@
-# Kinora brand kit
+# Kinnora brand kit
 
-Everything needed to use the Kinora brand in the apps, the website, the store listings and social media. Regenerate the files with `python3 build_brand_kit.py`.
+Everything needed to use the Kinnora brand in the apps, the website, the store listings and social media. Regenerate the files with `python3 build_brand_kit.py`.
 
-**Kinora** — *Feel · Align · Become*
+**Kinnora** — *Feel · Align · Become*
 
 ## The idea
 
-Kinora links a feeling to a touch on your ring. The mark says that in one picture:
+Kinnora links a feeling to a touch on your ring. The mark says that in one picture:
 - **The ring** is the one you wear, lit along its lower-right edge like an eclipse: a quiet moment catching the light.
 - **The four-point star** is the feeling you practise until a touch can bring it back.
 
@@ -39,7 +39,7 @@ Ready-made PNGs are in `png/` (logos and marks), `icons/` (app icon from 1024 px
   - move the star off-centre;
   - put the glow version on a light or busy photo;
   - change the gold to another colour;
-  - set "Kinora" in a different font in the logo;
+  - set "Kinnora" in a different font in the logo;
   - add effects (bevels, heavy shadows).
 
 ## Colour (`colors/`)
@@ -71,7 +71,7 @@ The apps' feeling colours (gratitude amber, love pink, joy yellow, calm blue, co
 
 ## Type
 
-- **Wordmark:** light-weight capitals, letter-spacing ≈ 0.45 em ("K I N O R A"). The tagline uses the same face, smaller, spaced ≈ 0.18 em, joined by " · ".
+- **Wordmark:** light-weight capitals, letter-spacing ≈ 0.45 em ("K I N N O R A"). The tagline uses the same face, smaller, spaced ≈ 0.18 em, joined by " · ".
 - **In the apps today:** the system font (SF Pro / Roboto) in light and regular weights.
 - **Recommended for marketing and a future in-app display face** (all free, Google Fonts):
   - *Jost* Light or *Montserrat* Light: geometric sans, close to the wordmark.
@@ -82,22 +82,22 @@ The apps' feeling colours (gratitude amber, love pink, joy yellow, calm blue, co
 
 - **Calm, warm and brief.** Speak to one person, in the present tense, as if the good thing is already real ("It's happening. Let the joy rise.").
 - **No hype, no medical claims.** It's a practice, not a promise.
-- Short sentences, everyday words. **Kinora** is always written with a capital K and the rest lowercase in text. All capitals are for the logo only.
+- Short sentences, everyday words. **Kinnora** is always written with a capital K and the rest lowercase in text. All capitals are for the logo only.
 
 ## Where it's used now
 
 | Platform | Item | Location |
 |---|---|---|
 | iOS | App icon | `PulseLoop/Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png` |
-| iOS | In-app logo | `pulseloop-logo` image set (Kinora mark) |
+| iOS | In-app logo | `pulseloop-logo` image set (Kinnora mark) |
 | iOS | Welcome screen | SwiftUI `KinoraMark` / `KinoraWordmark` |
 | Android | Launcher | `mipmap-*/ic_launcher*.png` (adaptive background `#1E1230`) |
 | Android | Logo | `drawable-nodpi/pulseloop_logo.png` |
 
 ## Later: the rest of the PulseLoop name (noted 2026-10-21, not done yet)
 
-Some things still say PulseLoop. They'll be renamed to Kinora when the original PulseLoop screens are reworked (some of those screens will be redesigned, some reused in Kinora):
-- **Original health screens:** they now show Kinora text, but still use the PulseLoop layout and colours. Restyle them with this kit.
+Some things still say PulseLoop. They'll be renamed to Kinnora when the original PulseLoop screens are reworked (some of those screens will be redesigned, some reused in Kinnora):
+- **Original health screens:** they now show Kinnora text, but still use the PulseLoop layout and colours. Restyle them with this kit.
 - **Names inside the code:** iOS targets, folders and the Xcode project (`PulseLoop`, `PulseLoopWidgets`, `PulseLoopLiveActivity`); the Android package `com.pulseloop`; the image asset names `pulseloop-logo` / `pulseloop_logo`.
 - **Widget and Live Activity display names.**
 - **Song files:** the MP3 artist tag still says "PulseLoop".

@@ -649,7 +649,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = PulseLoop/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = Kinora;
+				INFOPLIST_KEY_CFBundleDisplayName = Kinnora;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.healthcare-fitness";
 				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "PulseLoop connects to your SMART_RING to sync activity, heart rate, SpO2, and sleep.";
@@ -696,7 +696,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = PulseLoop/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = Kinora;
+				INFOPLIST_KEY_CFBundleDisplayName = Kinnora;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.healthcare-fitness";
 				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "PulseLoop connects to your SMART_RING to sync activity, heart rate, SpO2, and sleep.";
@@ -783,7 +783,7 @@
 				DEVELOPMENT_TEAM = S6MCLWFZRA;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = PulseLoopWidgets/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = Kinora;
+				INFOPLIST_KEY_CFBundleDisplayName = Kinnora;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -813,7 +813,7 @@
 				DEVELOPMENT_TEAM = S6MCLWFZRA;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = PulseLoopWidgets/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = Kinora;
+				INFOPLIST_KEY_CFBundleDisplayName = Kinnora;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				LD_RUNPATH_SEARCH_PATHS = (

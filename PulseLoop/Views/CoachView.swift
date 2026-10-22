@@ -196,7 +196,7 @@ struct CoachView: View {
         HStack(spacing: 12) {
             CoachOrb(size: 40)
             VStack(alignment: .leading, spacing: 1) {
-                Text("Kinora Coach").font(PulseFont.subheadline.weight(.semibold)).foregroundStyle(PulseColors.textPrimary)
+                Text("Kinnora Coach").font(PulseFont.subheadline.weight(.semibold)).foregroundStyle(PulseColors.textPrimary)
                 Text("Using your latest ring sync").font(PulseFont.caption2.weight(.regular)).foregroundStyle(PulseColors.textMuted)
             }
             Spacer()

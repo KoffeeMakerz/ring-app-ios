@@ -57,13 +57,13 @@ struct AppleHealthSettingsView: View {
         } message: {
             Text("Choose how much of your ring history to copy into Apple Health.")
         }
-        .alert("Remove Kinora data from Apple Health?", isPresented: $showRemoveAlert) {
+        .alert("Remove Kinnora data from Apple Health?", isPresented: $showRemoveAlert) {
             Button("Remove", role: .destructive) {
                 Task { await service.removeAllExportedData(context: modelContext) }
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("This deletes only the samples Kinora wrote. Data from other apps is untouched.")
+            Text("This deletes only the samples Kinnora wrote. Data from other apps is untouched.")
         }
     }
 
@@ -71,7 +71,7 @@ struct AppleHealthSettingsView: View {
 
     @ViewBuilder private var masterGroup: some View {
         SettingsGroup(
-            footer: "When on, Kinora mirrors your ring's data into Apple Health. "
+            footer: "When on, Kinnora mirrors your ring's data into Apple Health. "
                 + "Turning it off stops writing — data already in Health stays."
         ) {
             FormToggleRow(title: "Sync to Apple Health", isOn: Binding(
@@ -85,7 +85,7 @@ struct AppleHealthSettingsView: View {
 
     @ViewBuilder private var accessDeniedHint: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Kinora wasn't granted access. Turn it on for Kinora in the Health app.")
+            Text("Kinnora wasn't granted access. Turn it on for Kinnora in the Health app.")
                 .font(.caption)
                 .foregroundStyle(PulseColors.danger)
             QuickActionButton(label: "Open Health") { openHealthApp() }
@@ -132,12 +132,12 @@ struct AppleHealthSettingsView: View {
     }
 
     @ViewBuilder private var dangerGroup: some View {
-        SettingsGroup(footer: "Deletes only the samples Kinora wrote to Apple Health.") {
+        SettingsGroup(footer: "Deletes only the samples Kinnora wrote to Apple Health.") {
             Button {
                 showRemoveAlert = true
             } label: {
                 HStack {
-                    Text("Remove Kinora data from Apple Health")
+                    Text("Remove Kinnora data from Apple Health")
                         .font(PulseFont.body)
                         .foregroundStyle(PulseColors.danger)
                     Spacer()
@@ -163,9 +163,9 @@ struct AppleHealthSettingsView: View {
             if let last = store.syncState.lastSyncAt {
                 return ("Connected", "Last synced \(Self.relative(last)).")
             }
-            return ("Connected", "Kinora is mirroring your ring data to Apple Health.")
+            return ("Connected", "Kinnora is mirroring your ring data to Apple Health.")
         case .denied:
-            return ("Access is off", "Kinora's access to Apple Health is turned off. Turn it back on in the Health app.")
+            return ("Access is off", "Kinnora's access to Apple Health is turned off. Turn it back on in the Health app.")
         default:
             return ("Not connected", "Turn on Apple Health to mirror your ring's vitals, sleep, and activity.")
         }
