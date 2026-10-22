@@ -17,6 +17,9 @@ struct PulseLoopApp: App {
     @State private var coordinator: RingSyncCoordinator
     @State private var gpsRecorder: GpsRouteRecorder
     @State private var liveWorkout: LiveWorkoutManager
+    @State private var emotion: EmotionServices
+    /// Debug switch between the emotion app and the original PulseLoop UI (takes effect immediately).
+    @AppStorage(EmotionServices.legacyUIKey) private var legacyUI = false
     /// Retained for app lifetime so it keeps draining the event bus into SwiftData.
     private let persistence: EventPersistenceSubscriber
     /// Retained so it keeps regenerating Today/Sleep coach summaries on new data.
@@ -88,6 +91,8 @@ struct PulseLoopApp: App {
         _coordinator = State(initialValue: coordinator)
         _gpsRecorder = State(initialValue: gps)
         _liveWorkout = State(initialValue: LiveWorkoutManager(coordinator: coordinator, gps: gps, context: container.mainContext))
+        let emotionServices = EmotionServices(client: client, coordinator: coordinator)
+        _emotion = State(initialValue: emotionServices)
 
         let subscriber = EventPersistenceSubscriber(context: container.mainContext)
         self.persistence = subscriber
@@ -130,6 +135,9 @@ struct PulseLoopApp: App {
         healthSyncPublisher.start()
         stravaSyncPublisher.start()
         notificationDataTrigger.start()
+        // Reminder cues: phone-sent ring touches, delivered whenever iOS lets the app run.
+        emotionServices.startReminderDelivery(context: container.mainContext)
+        ExperienceImageStore.prune(container.mainContext)
 
         // Daily check-in notifications: route taps + register the background wake.
         UNUserNotificationCenter.current().delegate = notificationDelegate
@@ -141,7 +149,26 @@ struct PulseLoopApp: App {
 
     var body: some Scene {
         WindowGroup {
-            RootAppView()
+            Group {
+                if legacyUI {
+                    RootAppView()
+                        #if DEBUG
+                        .overlay(alignment: .topTrailing) {
+                            Button { legacyUI = false } label: {
+                                Label("Emotion app", systemImage: "arrow.uturn.backward")
+                                    .font(.system(size: 13, weight: .semibold))
+                                    .padding(.horizontal, 12).frame(height: 32)
+                                    .background(.ultraThinMaterial, in: Capsule())
+                            }
+                            .padding(.trailing, 12).padding(.top, 4)
+                            .accessibilityLabel("Back to the emotion app")
+                        }
+                        #endif
+                } else {
+                    EmotionRootView()
+                }
+            }
+                .environment(emotion)
                 .environment(bleClient)
                 .environment(coordinator)
                 .environment(gpsRecorder)

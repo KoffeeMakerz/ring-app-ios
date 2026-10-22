@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <radialGradient id="bgA" cx="50%" cy="42%" r="75%"><stop offset="0%" stop-color="#341E48"/><stop offset="100%" stop-color="#120B1C"/></radialGradient>
+    <linearGradient id="goldA" x1="15%" y1="15%" x2="85%" y2="85%"><stop offset="0%" stop-color="#B8805A"/><stop offset="60%" stop-color="#E2B48C"/><stop offset="100%" stop-color="#FFE3C8"/></linearGradient>
+    <radialGradient id="sgA" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#FFDCBE" stop-opacity="0.55"/><stop offset="100%" stop-color="#FFDCBE" stop-opacity="0"/></radialGradient>
+    <filter id="blA" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="22"/></filter>
+  </defs>
+  <rect width="1024" height="1024" fill="url(#bgA)"/><path d="M 814.3 458.7 A 307 307 0 0 1 458.7 814.3" fill="none" stroke="#FFC9A6" stroke-width="35.9" stroke-linecap="round" stroke-opacity="0.5" filter="url(#blA)"/><path d="M 814.3 458.7 A 307 307 0 0 1 458.7 814.3" fill="none" stroke="#FFE6D2" stroke-width="16.0" stroke-linecap="round" stroke-opacity="0.55"/><circle cx="512" cy="512" r="190.3" fill="url(#sgA)"/><circle cx="512" cy="512" r="307" fill="none" stroke="url(#goldA)" stroke-width="11.1"/><path d="M512,392.27 Q527.5649,496.4351 631.73,512 Q527.5649,527.5649 512,631.73 Q496.4351,527.5649 392.27,512 Q496.4351,496.4351 512,392.27 Z" fill="#FFECD6"/>
+</svg>
