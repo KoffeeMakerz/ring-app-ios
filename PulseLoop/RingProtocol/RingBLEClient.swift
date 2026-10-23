@@ -447,6 +447,21 @@ final class RingBLEClient: NSObject {
         activeSyncEngine = driver.makeSyncEngine()
         activeDeviceType = coordinatorType.deviceType
         activeCapabilities = coordinator.refinedCapabilities(bitmapDerived: lastKnownCapabilities)
+            .union(modelExtraCapabilities)
+    }
+
+    /// The connected model's own capabilities beyond its family's (`WearableModel.extraCapabilities`).
+    ///
+    /// Granted only when the ring's advertised name identifies that model. `WearableModel.resolve`
+    /// falls back to the carousel choice (and state restoration to the remembered model), which is fine
+    /// for the name and art but not for features: a ring matched some other way while the carousel sits
+    /// on the Ring 2 Pro would otherwise get HRV / stress / temperature controls it was never shown to
+    /// support, each running its 75 s ceiling before failing.
+    private var modelExtraCapabilities: Set<WearableCapability> {
+        guard let model = WearableModel.model(advertisedName: activeAdvertisedName),
+              model.id == activeWearableModelID,
+              model.family == activeDeviceType else { return [] }
+        return model.extraCapabilities
     }
 
     /// Re-adopt the remembered ring's identity: its family **and** the exact catalog model.
@@ -459,8 +474,11 @@ final class RingBLEClient: NSObject {
     func adoptRememberedIdentity() {
         // The remembered family already *is* the user's choice — `beginConnect` persisted whichever
         // coordinator it selected — so a restored session re-adopts the right driver for free.
-        installDriver(Self.coordinatorType(preferredFamily: nil, autoMatched: lastKnownDeviceType))
+        // Name and model go first: `installDriver` grants per-model extras only when the ring's own
+        // (here: cached GAP) name identifies the remembered model (`modelExtraCapabilities`).
+        activeAdvertisedName = peripheral?.name
         activeWearableModelID = lastKnownWearableModelID
+        installDriver(Self.coordinatorType(preferredFamily: nil, autoMatched: lastKnownDeviceType))
     }
 
     /// Fold the ring's self-reported capability bitmap into the active capability set.
@@ -476,7 +494,7 @@ final class RingBLEClient: NSObject {
     /// churn the bus and the store for nothing.
     private func applySupportFunctions(_ derived: Set<WearableCapability>) {
         guard let coordinator = activeCoordinator, let type = activeDeviceType else { return }
-        let refined = coordinator.refinedCapabilities(bitmapDerived: derived)
+        let refined = coordinator.refinedCapabilities(bitmapDerived: derived).union(modelExtraCapabilities)
         // Remember the answer even when it changes nothing right now: this is what seeds the *next*
         // connect, before that connect's own bitmap has arrived (see `lastKnownCapabilities`).
         UserDefaults.standard.set(refined.csv, forKey: Self.lastCapabilitiesKey)

@@ -186,7 +186,12 @@ final class RingSyncCoordinator {
 
     private(set) var hrState: MeasureState = .idle
     private(set) var spo2State: MeasureState = .idle
-    private(set) var hrvState: MeasureState = .idle
+    /// One state per `SpotVital`. HRV's is also `hrvState`, which the first-value HRV leg drives.
+    private(set) var spotVitalStates: [SpotVital: MeasureState] = [:]
+    private(set) var hrvState: MeasureState {
+        get { vitalState(.hrv) }
+        set { spotVitalStates[.hrv] = newValue }
+    }
     /// `.done` carries the systolic value; read `latestBloodPressureValue` for the full pair.
     private(set) var bpState: MeasureState = .idle
     /// Combined sweep (all vitals at once). `.done` carries HR; the caller keeps the full reading.
@@ -238,6 +243,10 @@ final class RingSyncCoordinator {
     /// The samples of the HR measurement in flight, and the rule for whether they settled — see
     /// `HRSampleWindow`, which owns the warm-up echo and the consistency gate.
     private var hrWindow = HRSampleWindow()
+    /// The streamed values of an on-demand HRV / stress / temperature run — see `SpotVitalWindow`.
+    private var spotVitalWindow = SpotVitalWindow()
+    /// The ring ended the `SpotVital` run in flight with an error before any value arrived.
+    private var spotVitalNoReading: SpotVital?
     /// True once the current measurement has produced a real (post-warm-up) bpm. Drives the live value
     /// in the measurement sheet, and keeps a stale `latestHRValue` from passing for a fresh reading.
     var measurementReceivedReading: Bool { hrWindow.receivedReading }
@@ -281,6 +290,9 @@ final class RingSyncCoordinator {
     /// HRV needs a stretch of beats to stabilize, so give it a longer on-finger window. (A ring without
     /// an HRV sensor no longer waits it out — it now refuses the `03 2f` start and we fail immediately.)
     private let hrvMeasureSeconds: UInt64 = 45
+    /// Ceiling for a streamed HRV / stress / temperature run — QRing's `CountDownTimer(75000L, …)`. A
+    /// run normally ends ~30 s in, once the ring goes quiet (`SpotVitalWindow`).
+    private let spotVitalMeasureSeconds: UInt64 = 75
     /// BP rides the same PPG warm-up as SpO2 and the ring's estimator settles slowly (observed: ~12 s).
     private let bpMeasureSeconds: UInt64 = 45
     /// The combined sweep computes every metric, so give it the longest window (observed: the ring
@@ -596,6 +608,9 @@ final class RingSyncCoordinator {
     /// the abort below: the `03 2f` refusal ends the measurement in the time one reply takes to arrive.
     @discardableResult
     func measureHRV() async -> Int? {
+        if engine?.streamsSpotVitals == true {
+            return await measureSpotVital(.hrv).map { Int($0.rounded()) }
+        }
         guard hrvState != .measuring else { return nil }
         if client.activeDeviceType == .rwfit,
            [hrState, spo2State, hrvState, bpState].contains(.measuring) { return nil }
@@ -621,6 +636,64 @@ final class RingSyncCoordinator {
         // Same shared-stream teardown as SpO2 above: restore the workout's live HR if one was running.
         restartWorkoutHeartRateIfActive()
         hrvState = result.map { .done($0) } ?? .failed
+        return result
+    }
+
+    func vitalState(_ vital: SpotVital) -> MeasureState { spotVitalStates[vital] ?? .idle }
+
+    /// An on-demand HRV / stress / temperature run on a family that streams them (Colmi `0x69` types
+    /// 0a/08/0b — QRing's manual measure screens). Ends on `SpotVitalWindow`'s rule — the ring has gone
+    /// quiet after streaming — or at the ceiling, taking whatever last value arrived; fails on the
+    /// ring's not-worn error or a dropped link. The streamed values are never stored (they reach us only
+    /// as `.spotVitalSample` on the raw-packet feed); the one settled reading is published once at the
+    /// end, so it is stored as one row.
+    @discardableResult
+    func measureSpotVital(_ vital: SpotVital) async -> Double? {
+        guard vitalState(vital) != .measuring else { return nil }
+        spotVitalStates[vital] = .idle   // no stale verdict on a refusal below
+        guard client.state == .connected, let engine, engine.streamsSpotVitals else {
+            spotVitalStates[vital] = .failed
+            return nil
+        }
+        // Refused during a workout: `0x69 <type>` takes over the ring's single realtime engine, so the
+        // workout would lose its live bpm for the whole run.
+        guard !workoutHRActive else { return nil }
+        // Refused while another spot measurement holds the sensor (Android's `measureVitalOnly`): each
+        // run's `0x6A` stop tears down the ring's one realtime engine, ending the other run with it.
+        guard ![hrState, spo2State, bpState].contains(.measuring),
+              !spotVitalStates.values.contains(.measuring) else { return nil }
+        spotVitalStates[vital] = .measuring
+        measureNotWorn = false
+        spotVitalNoReading = nil
+        spotVitalWindow.begin(vital)
+        engine.startSpotVital(vital)
+
+        var aborted = false
+        for _ in 0..<(Int(spotVitalMeasureSeconds) * 2) {   // 0.5 s granularity
+            if Task.isCancelled || spotVitalNoReading == vital { aborted = true; break }
+            if client.state != .connected { aborted = true; break }
+            // A workout started inside the run and now wants the realtime engine back.
+            if workoutHRActive { aborted = true; break }
+            if spotVitalWindow.isSettled(at: Date()) { break }
+            try? await Task.sleep(nanoseconds: 500_000_000)
+        }
+        let result = aborted ? nil : spotVitalWindow.settled
+
+        // The stop hands the ring back the reading, as QRing's does, and also tears down the workout's
+        // realtime stream; bring that straight back.
+        self.engine?.stopSpotVital(vital, settled: result)
+        restartWorkoutHeartRateIfActive()
+        spotVitalStates[vital] = result.map { .done(Int($0.rounded())) } ?? .failed
+        if let result {
+            let now = Date()
+            let event: PulseEvent
+            switch vital {
+            case .hrv: event = .hrvSample(value: Int(result.rounded()), timestamp: now)
+            case .stress: event = .stressSample(value: Int(result.rounded()), timestamp: now)
+            case .temperature: event = .temperatureSample(celsius: result, timestamp: now)
+            }
+            await PulseEventBus.shared.publish(event)
+        }
         return result
     }
 
@@ -759,8 +832,20 @@ final class RingSyncCoordinator {
             // `.measurementRejected` has no `PulseEvent` of its own — it is a verdict on a command, not
             // data — so the raw-packet feed (which carries every decoded frame) is where a measurement
             // hears the ring say no.
-            guard case let .measurementRejected(mode) = decoded else { break }
-            spot.noteRejected(mode: mode)
+            switch decoded {
+            case let .measurementRejected(mode):
+                spot.noteRejected(mode: mode)
+            case let .spotVitalSample(vital, value, timestamp):
+                if vitalState(vital) == .measuring { spotVitalWindow.collect(vital, value: value, at: timestamp) }
+            case let .spotVitalNoReading(vital, _):
+                // Only before any value: a late error must not turn a reading into a failure.
+                if vitalState(vital) == .measuring, !spotVitalWindow.receivedReading {
+                    spotVitalNoReading = vital
+                    measureNotWorn = true
+                }
+            default:
+                break
+            }
         default:
             mirrorLiveValue(event)
         }
