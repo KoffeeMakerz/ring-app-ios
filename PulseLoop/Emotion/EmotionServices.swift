@@ -11,6 +11,7 @@ final class EmotionServices {
     let simulator: SimulatedRing
     let haptics: RingHapticsService
     let heart: LiveHeartRate
+    let watch: WatchLink
     private(set) var dispatcher: CueDispatcher?
     private(set) var calm: CalmCueMonitor?
 
@@ -24,6 +25,10 @@ final class EmotionServices {
         #endif
         self.simulator = simulator
         self.haptics = RingHapticsService(client: client, simulator: simulator)
+        let watch = WatchLink()
+        self.watch = watch
+        haptics.watch = watch
+        watch.activate()
         self.heart = LiveHeartRate(client: client, coordinator: coordinator, simulator: simulator)
     }
 

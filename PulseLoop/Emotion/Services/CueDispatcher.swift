@@ -135,9 +135,9 @@ final class CueDispatcher {
             older.deliveredVia = "merged with the \(hm(minutesOfDay(latest.scheduledAt))) cue"
         }
 
-        guard services.haptics.isRingConnected else {
+        guard services.haptics.canDeliverTouch else {
             latest.attempts += 1
-            logWake(trigger, "cue due but ring not connected (try \(latest.attempts))")
+            logWake(trigger, "cue due but no ring or watch connected (try \(latest.attempts))")
             if latest.attempts >= Self.maxAttempts {
                 latest.status = "missed"
                 latest.deliveredVia = "ring not connected after \(Self.maxAttempts) tries"
@@ -165,7 +165,9 @@ final class CueDispatcher {
         event.delaySeconds = max(0, Int(now.timeIntervalSince(event.scheduledAt)))
         event.deliveredVia = trigger.rawValue
         try? context.save()
-        logWake(trigger, "SENT to ring · \(event.delaySeconds! / 60) min late")
+        let places = [services.haptics.isRingConnected && !services.watch.replacesRing ? "ring" : nil,
+                      services.watch.canPlay ? "watch" : nil].compactMap { $0 }.joined(separator: " + ")
+        logWake(trigger, "SENT to \(places) · \(event.delaySeconds! / 60) min late")
 
         // Ask iOS for enough background time to send the whole sequence.
         let token = BackgroundTime.begin(name: "emotion.cue")

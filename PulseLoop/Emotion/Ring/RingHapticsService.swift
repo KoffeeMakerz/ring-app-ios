@@ -8,6 +8,8 @@ import Observation
 final class RingHapticsService {
     private let client: RingBLEClient
     let simulator: SimulatedRing
+    /// The paired Apple Watch, if any. Touches go there too, per the Ring / Watch / Both setting.
+    var watch: WatchLink?
 
     private(set) var isPlaying = false
     private(set) var lastPlayed: TouchPattern?
@@ -21,6 +23,8 @@ final class RingHapticsService {
     var usesSimulator: Bool { simulator.isEnabled }
 
     var isRingConnected: Bool { usesSimulator ? simulator.connected : client.state == .connected }
+    /// A touch can be felt somewhere: on the ring, or on a watch that's listening.
+    var canDeliverTouch: Bool { isRingConnected || (watch?.canPlay ?? false) }
 
     /// What kind of ring it is: the model ("Colmi R09"), else the family, else the ring's own name.
     var ringName: String {
@@ -63,9 +67,13 @@ final class RingHapticsService {
         return result
     }
 
+    /// Plays a touch on the ring and, per the setting, on the watch.
     func play(_ pattern: TouchPattern) {
         stop(sendStop: false)
         lastPlayed = pattern
+        let toWatch = watch?.play(pattern) ?? false
+        // "Watch" only: skip the ring, but keep the timing so isPlaying matches what the wrist feels.
+        let onRing = !(toWatch && (watch?.replacesRing ?? false))
         let profile = self.profile
         let steps = plan(pattern, profile: profile)
         isPlaying = true
@@ -82,6 +90,7 @@ final class RingHapticsService {
                 let due = begin + .milliseconds(step.start)
                 try? await Task.sleep(until: due, clock: .continuous)
                 if Task.isCancelled { return }
+                guard onRing else { continue }
                 await self.sendPulse(lengthMs: step.length, label: "BUZZ \(profile.buzzMs == nil ? "motor on \(step.length) ms" : "find-device") @+\(step.start) ms")
             }
             self?.isPlaying = false
