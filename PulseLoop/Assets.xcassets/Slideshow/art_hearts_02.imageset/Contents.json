@@ -1,0 +1,12 @@
+{
+  "images" : [
+    {
+      "filename" : "art_hearts_02.jpg",
+      "idiom" : "universal"
+    }
+  ],
+  "info" : {
+    "author" : "xcode",
+    "version" : 1
+  }
+}
