@@ -23,7 +23,7 @@ struct RingSettingsView: View {
                             }
                             HStack(spacing: 6) {
                                 Circle().fill(services.haptics.isRingConnected ? EColor.success : EColor.warning).frame(width: 8, height: 8)
-                                Text(services.haptics.isRingConnected ? "Connected · \(services.haptics.batteryPercent.map { "\($0)%" } ?? "—")" : "Not connected")
+                                Text(services.haptics.isRingConnected ? "Connected\(services.haptics.batteryPercent.map { " · \($0)%" } ?? "")" : "Not connected")
                                     .font(EFont.body(13)).foregroundStyle(EColor.textSecondary)
                             }
                         }

@@ -114,8 +114,16 @@ final class RingBLEClient: NSObject {
     /// settings and in the ring's own app. nil when not connected.
     var connectedDeviceName: String? {
         guard state == .connected else { return nil }
-        let name = activeAdvertisedName ?? peripheral?.name
-        return (name?.isEmpty ?? true) ? nil : name
+        return Self.displayableName(activeAdvertisedName) ?? Self.displayableName(peripheral?.name)
+    }
+
+    /// A ring name worth showing: not blank, not only dashes or dots ("--"), and not a placeholder
+    /// some firmwares advertise ("N/A", "null", "unknown"). nil otherwise, so callers fall back.
+    nonisolated static func displayableName(_ name: String?) -> String? {
+        guard let trimmed = name?.trimmingCharacters(in: .whitespacesAndNewlines),
+              trimmed.rangeOfCharacter(from: .alphanumerics) != nil else { return nil }
+        let placeholders: Set<String> = ["n/a", "na", "null", "nil", "none", "unknown", "default", "undefined"]
+        return placeholders.contains(trimmed.lowercased()) ? nil : trimmed
     }
     /// What the active device can do — the single source the capability-gated UI consults.
     private(set) var activeCapabilities: Set<WearableCapability> = []

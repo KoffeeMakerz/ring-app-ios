@@ -29,10 +29,10 @@ final class RingHapticsService {
     /// What kind of ring it is: the model ("Colmi R09"), else the family, else the ring's own name.
     var ringName: String {
         if usesSimulator { return "Simulated ring" }
-        return client.activeWearableModel?.displayName
-            ?? client.activeDeviceType?.displayName
+        return RingBLEClient.displayableName(client.activeWearableModel?.displayName)
+            ?? RingBLEClient.displayableName(client.activeDeviceType?.displayName)
             ?? client.connectedDeviceName
-            ?? "Your ring"
+            ?? "Smart ring"
     }
 
     /// The ring's own Bluetooth name, shown small under `ringName` when it adds something.
