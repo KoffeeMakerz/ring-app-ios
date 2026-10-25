@@ -93,9 +93,6 @@ struct RecordSummaryView: View {
 
                     effortCard
 
-                    // Same position semantics as ActivityDetailView: after the notes/effort content.
-                    StravaUploadRow(session: session)
-
                     Spacer(minLength: 8)
                 }
                 .padding(16)

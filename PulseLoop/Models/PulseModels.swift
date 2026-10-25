@@ -595,7 +595,8 @@ final class ActivitySession {
     // How workout HR was captured: "stream" (continuous live HR stream) or "spot" (timer-driven
     // one-shot reads). Defaulted so the migration stays additive.
     var vitalsModeRaw: String = "spot"
-    // Strava activity id once uploaded; nil = never uploaded. Defaulted so the migration stays additive.
+    // Strava activity id from older builds (Strava was removed). Kept only so the SwiftData store
+    // still opens without a migration; nothing reads or writes it now.
     var stravaActivityId: String? = nil
 
     init(
