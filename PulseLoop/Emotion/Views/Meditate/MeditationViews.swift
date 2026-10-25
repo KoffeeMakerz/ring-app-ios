@@ -154,6 +154,7 @@ struct MeditationSessionView: View {
                 hrvBefore = latestHRV(within: 6 * 3600)
             }
             .onDisappear { services.heart.stop(); services.haptics.stop(sendStop: false) }
+            .keepsScreenAwake() // no auto-lock mid-session
             .sheet(isPresented: $showPairing) {
                 PairingView(onConnected: { showPairing = false }, onSkip: { showPairing = false })
             }

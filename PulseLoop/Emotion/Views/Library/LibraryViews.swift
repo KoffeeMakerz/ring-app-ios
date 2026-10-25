@@ -271,6 +271,7 @@ struct ExperiencePlayerView: View {
             experience.lastPlayedAt = Date()
         }
         .onDisappear { playback?.stop() }
+        .keepsScreenAwake() // no auto-lock mid-session
         .sheet(isPresented: $showVision) {
             VisionSheet(experience: experience).environment(router)
                 .presentationDetents([.medium, .large])
