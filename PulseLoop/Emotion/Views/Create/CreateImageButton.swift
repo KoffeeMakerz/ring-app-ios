@@ -15,12 +15,14 @@ struct CreateImageButton: View {
     /// What to draw, prefilled from the vision (the person can change it in the sheet).
     let concept: String
     var disabled = false
+    /// Bump to open Image Playground again ("Create another").
+    var openRequests = 0
     /// Called with the created image's file (a temporary URL from the system).
     let onCreated: (URL) -> Void
 
     var body: some View {
         if #available(iOS 18.1, *) {
-            PlaygroundButton(concept: concept, disabled: disabled, onCreated: onCreated)
+            PlaygroundButton(concept: concept, disabled: disabled, openRequests: openRequests, onCreated: onCreated)
         }
     }
 }
@@ -29,6 +31,7 @@ struct CreateImageButton: View {
 private struct PlaygroundButton: View {
     let concept: String
     let disabled: Bool
+    let openRequests: Int
     let onCreated: (URL) -> Void
     @Environment(\.supportsImagePlayground) private var supported
     @State private var showing = false
@@ -49,6 +52,7 @@ private struct PlaygroundButton: View {
                 onCreated(url)
             }
             .onDeviceStylesOnly()
+            .onChange(of: openRequests) { _, _ in if !disabled { showing = true } }
         }
     }
 }

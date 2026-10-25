@@ -352,6 +352,13 @@ struct ImagesPickerView: View {
     @State private var pickerItems: [PhotosPickerItem] = []
     @State private var importing = 0
     @State private var failed = 0
+    /// The picture Image Playground just made, shown in a confirmation card and highlighted in the strip.
+    @State private var justCreated: String?
+    @State private var savingCreated = false
+    /// Set once the strip highlight for `justCreated` has faded.
+    @State private var highlightDone: String?
+    /// Bumped by "Create another" to open Image Playground again.
+    @State private var createAgain = 0
 
     private var isFull: Bool { refs.count >= SlideRef.maxCount }
 
@@ -410,10 +417,15 @@ struct ImagesPickerView: View {
         }
     }
 
+    private func isHighlighted(_ ref: String) -> Bool { ref == justCreated && ref != highlightDone }
+
     private func thumb(_ slide: SlideRef, ref: String, number: Int) -> some View {
         SlideImage(slide: slide)
             .frame(width: 66, height: 76)
             .clipShape(RoundedRectangle(cornerRadius: 10))
+            .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(EColor.accent, lineWidth: isHighlighted(ref) ? 3 : 0))
+            .scaleEffect(isHighlighted(ref) ? 1.06 : 1)
+            .animation(.spring(response: 0.35, dampingFraction: 0.6), value: isHighlighted(ref))
             .overlay(alignment: .bottomLeading) {
                 Text("\(number)").font(EFont.body(11, .bold)).foregroundStyle(EColor.onAccent)
                     .frame(minWidth: 18, minHeight: 18).background(EColor.accent, in: Circle()).padding(4)
@@ -516,8 +528,15 @@ struct ImagesPickerView: View {
             }
             .buttonStyle(SecondaryButtonStyle())
             .disabled(isFull || importing > 0)
-            CreateImageButton(concept: vision, disabled: isFull || importing > 0) { url in importCreated(url) }
-            if importing > 0 {
+            CreateImageButton(concept: vision, disabled: isFull || importing > 0, openRequests: createAgain) { url in importCreated(url) }
+            if savingCreated {
+                HStack(spacing: 10) { ProgressView(); Text("Adding your new image…").font(EFont.body(14)) }
+            }
+            if let justCreated, let index = refs.firstIndex(of: justCreated), let slide = SlideRef(ref: justCreated) {
+                createdCard(slide, number: index + 1)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+            }
+            if importing > 0, !savingCreated {
                 HStack(spacing: 10) { ProgressView(); Text("Adding \(importing) photo\(importing == 1 ? "" : "s")…").font(EFont.body(14)) }
             }
             if failed > 0 {
@@ -564,17 +583,56 @@ struct ImagesPickerView: View {
         return true
     }
 
-    /// Keeps a private copy of an Image Playground picture, like a picked photo.
+    /// "Added to your slideshow": the new picture, its number, and a way to make another.
+    private func createdCard(_ slide: SlideRef, number: Int) -> some View {
+        HStack(spacing: 12) {
+            SlideImage(slide: slide)
+                .frame(width: 56, height: 64)
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+            VStack(alignment: .leading, spacing: 3) {
+                Label("Added to your slideshow", systemImage: "checkmark.circle.fill")
+                    .font(EFont.body(14, .semibold)).foregroundStyle(EColor.success)
+                Text("Image \(number) of \(refs.count) · highlighted above").font(EFont.body(12)).foregroundStyle(EColor.textSecondary)
+                Button("Create another") { createAgain += 1 }
+                    .font(EFont.body(13, .semibold)).foregroundStyle(EColor.accent)
+                    .disabled(isFull)
+            }
+            Spacer(minLength: 0)
+            Button { withAnimation { justCreated = nil } } label: {
+                Image(systemName: "xmark").font(.system(size: 12, weight: .bold)).foregroundStyle(EColor.textMuted)
+                    .frame(width: 32, height: 32)
+            }
+            .accessibilityLabel("Dismiss")
+        }
+        .padding(10)
+        .background(EColor.card, in: RoundedRectangle(cornerRadius: 14))
+        .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(EColor.success.opacity(0.6), lineWidth: 1))
+        .accessibilityElement(children: .combine)
+    }
+
+    /// Keeps a private copy of an Image Playground picture, like a picked photo, and says so.
     private func importCreated(_ url: URL) {
         failed = 0
         importing += 1
+        savingCreated = true
         Task {
             let name = await Task.detached(priority: .userInitiated) { () -> String? in
                 guard let data = try? Data(contentsOf: url) else { return nil }
                 return ExperienceImageStore.save(data)
             }.value
             importing -= 1
-            if let name, refs.count < SlideRef.maxCount { refs.append("file:\(name)") } else { failed += 1 }
+            savingCreated = false
+            guard let name, refs.count < SlideRef.maxCount else { failed += 1; return }
+            let ref = "file:\(name)"
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                refs.append(ref)
+                justCreated = ref
+            }
+            UINotificationFeedbackGenerator().notificationOccurred(.success)
+            UIAccessibility.post(notification: .announcement, argument: "Added to your slideshow as image \(refs.count)")
+            // The strip highlight fades after a few seconds; the card stays until dismissed or the next one.
+            try? await Task.sleep(for: .seconds(4))
+            if justCreated == ref { withAnimation { highlightDone = ref } }
         }
     }
 
