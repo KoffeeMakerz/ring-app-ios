@@ -235,6 +235,7 @@ struct TrainingSessionView: View {
         }
         .onAppear(perform: setUp)
         .onDisappear { playback?.stop() }
+        .keepsScreenAwake() // no auto-lock mid-session
     }
 
     private func setUp() {
