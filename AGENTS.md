@@ -42,3 +42,12 @@ Use certainty labels in knowledge docs where relevant:
 - `Status: unverified`
 
 Only use `hardware-verified` when explicit real-device evidence exists.
+
+## Store notes: update them with every change
+
+`docs/store/app-store.md` and `docs/store/google-play.md` track what the App Store and Google Play
+require, what's done and what's still open. **Any change that touches permissions, background
+behaviour, data leaving the phone, AI features, health features, payments, store wording or videos
+updates both notes in the same commit**: the affected rows plus a line in the change log at the bottom.
+The same files live in ring-app-ios and ring-app-android; keep them identical (copy across). The
+project doc `claude/store-compliance.md` mirrors them.
