@@ -333,7 +333,7 @@ struct LearnView: View {
 }
 
 
-/// The paired Apple Watch: status, where touches play, and a test.
+/// The paired watch (Apple Watch today; Garmin and Amazfit later): status, where touches play, and a test.
 struct WatchCard: View {
     @Environment(EmotionServices.self) private var services
 
@@ -347,7 +347,9 @@ struct WatchCard: View {
                     .background(EColor.cardRaised, in: Circle())
                     .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Apple Watch").font(EFont.body(16, .bold))
+                    Text("Watch").font(EFont.body(16, .bold))
+                    // Only Apple Watch can link to an iPhone app today; Garmin and Amazfit are planned.
+                    Text("Apple Watch").font(EFont.body(12)).foregroundStyle(EColor.textMuted)
                     HStack(spacing: 6) {
                         Circle().fill(watch.isReachable ? EColor.success : EColor.warning).frame(width: 8, height: 8)
                         Text(watch.statusText).font(EFont.body(13)).foregroundStyle(EColor.textSecondary)
