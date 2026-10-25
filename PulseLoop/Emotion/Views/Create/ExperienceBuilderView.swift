@@ -134,7 +134,10 @@ struct ExperienceBuilderView: View {
         .onDisappear { preview?.stop() }
         .onChange(of: track) { _, _ in preview?.stop(); preview = nil }
         .sheet(isPresented: $showTrackPicker) { TrackPickerSheet(selected: $track) }
-        .sheet(isPresented: $showImages) { ImagesPickerView(refs: $imageRefs, feelings: arc.isEmpty ? [.gratitude] : arc) }
+        .sheet(isPresented: $showImages) {
+            ImagesPickerView(refs: $imageRefs, feelings: arc.isEmpty ? [.gratitude] : arc,
+                             vision: ([title] + points).map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }.joined(separator: ". "))
+        }
     }
 
     // MARK: Arc
@@ -342,6 +345,8 @@ struct SongPartsBar: View {
 struct ImagesPickerView: View {
     @Binding var refs: [String]
     let feelings: [Feeling]
+    /// The vision's title and points, used to prefill "Create with Apple Intelligence".
+    var vision: String = ""
     @Environment(\.dismiss) private var dismiss
     @State private var segment = 0
     @State private var pickerItems: [PhotosPickerItem] = []
@@ -511,6 +516,7 @@ struct ImagesPickerView: View {
             }
             .buttonStyle(SecondaryButtonStyle())
             .disabled(isFull || importing > 0)
+            CreateImageButton(concept: vision, disabled: isFull || importing > 0) { url in importCreated(url) }
             if importing > 0 {
                 HStack(spacing: 10) { ProgressView(); Text("Adding \(importing) photo\(importing == 1 ? "" : "s")…").font(EFont.body(14)) }
             }
@@ -556,6 +562,20 @@ struct ImagesPickerView: View {
             refs.insert(dragged, at: from < targetIndex ? min(to + 1, refs.endIndex) : to)
         }
         return true
+    }
+
+    /// Keeps a private copy of an Image Playground picture, like a picked photo.
+    private func importCreated(_ url: URL) {
+        failed = 0
+        importing += 1
+        Task {
+            let name = await Task.detached(priority: .userInitiated) { () -> String? in
+                guard let data = try? Data(contentsOf: url) else { return nil }
+                return ExperienceImageStore.save(data)
+            }.value
+            importing -= 1
+            if let name, refs.count < SlideRef.maxCount { refs.append("file:\(name)") } else { failed += 1 }
+        }
     }
 
     private func importPhotos(_ items: [PhotosPickerItem]) {
