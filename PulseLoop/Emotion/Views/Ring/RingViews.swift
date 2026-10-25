@@ -40,6 +40,9 @@ struct RingSettingsView: View {
                 }
                 .padding(16).eCard(radius: 22)
 
+                SectionLabel("Watch").padding(.top, 6)
+                WatchCard()
+
                 if let p = profiles.first {
                     @Bindable var profile = p
                     RingStatsSection(profile: p).padding(.top, 6)
@@ -326,5 +329,52 @@ struct LearnView: View {
         }
         .emotionScreen()
         .navigationTitle("Learn")
+    }
+}
+
+
+/// The paired watch (Apple Watch today; Garmin and Amazfit later): status, where touches play, and a test.
+struct WatchCard: View {
+    @Environment(EmotionServices.self) private var services
+
+    var body: some View {
+        @Bindable var watch = services.watch
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 14) {
+                Image(systemName: "applewatch")
+                    .font(.system(size: 22))
+                    .frame(width: 48, height: 48)
+                    .background(EColor.cardRaised, in: Circle())
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Watch").font(EFont.body(16, .bold))
+                    // Only Apple Watch can link to an iPhone app today; Garmin and Amazfit are planned.
+                    Text("Apple Watch").font(EFont.body(12)).foregroundStyle(EColor.textMuted)
+                    HStack(spacing: 6) {
+                        Circle().fill(watch.isReachable ? EColor.success : EColor.warning).frame(width: 8, height: 8)
+                        Text(watch.statusText).font(EFont.body(13)).foregroundStyle(EColor.textSecondary)
+                    }
+                }
+                Spacer()
+            }
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Touches play on").font(EFont.body(13, .semibold)).foregroundStyle(EColor.textSecondary)
+                Picker("Touches play on", selection: $watch.target) {
+                    ForEach(TouchTarget.allCases) { Text($0.label).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+            }
+            Text("The watch plays touches while Kinnora is open on it. Start a session on the watch to keep it listening with your wrist down. Reminders also show on the watch as notifications. With \"Watch\" chosen and no watch around, touches go to the ring.")
+                .font(EFont.body(12)).foregroundStyle(EColor.textMuted)
+                .fixedSize(horizontal: false, vertical: true)
+            Button("Test watch") { watch.play(Feeling.gratitude.touch, force: true) }
+                .buttonStyle(SecondaryButtonStyle(height: 44))
+                .disabled(!watch.isReachable)
+            if let error = watch.lastError {
+                Text("Couldn't reach the watch: \(error)").font(EFont.body(12)).foregroundStyle(EColor.warning)
+            }
+        }
+        .padding(16).eCard(radius: 22)
     }
 }
