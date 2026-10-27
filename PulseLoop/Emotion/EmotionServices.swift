@@ -48,6 +48,9 @@ final class EmotionServices {
     /// Call from the app's init (BGTaskScheduler registration must happen before launch ends).
     func startReminderDelivery(context: ModelContext) {
         guard dispatcher == nil else { return }
+        // The paired watch can take over reminder notifications; it gets the plan through the link.
+        ReminderScheduler.watchTakesOver = { [weak watch] in watch?.takesOverReminders ?? false }
+        watch.attach(context)
         let d = CueDispatcher(context: context, services: self)
         dispatcher = d
         calm = CalmCueMonitor(context: context, services: self)

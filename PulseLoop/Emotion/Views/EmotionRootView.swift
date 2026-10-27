@@ -1,5 +1,6 @@
 import SwiftData
 import SwiftUI
+import UIKit
 import UserNotifications
 
 enum ETab: Hashable { case home, library, train, meditate, ring }
@@ -107,7 +108,25 @@ struct EmotionRootView: View {
             notificationBridge.install(
                 onCue: { feeling, expID in router.cue = CueRequest(feeling: feeling, eventID: nil, experienceID: expID) },
                 onDeliver: { _, _ in services.dispatcher?.check(.notification) },
-                onCalm: { router.meditation = .calmBreath })
+                onCalm: { router.meditation = .calmBreath },
+                onPlay: { id in
+                    router.experienceToPlay = try? context.fetch(FetchDescriptor<Experience>(predicate: #Predicate { $0.id == id })).first
+                })
+            // "Play on iPhone" from the watch: open the player now if Kinnora is on screen,
+            // otherwise a notification that opens it (iOS can't start the player in the background).
+            services.watch.onStartExperience = { id in
+                guard let exp = try? context.fetch(FetchDescriptor<Experience>(predicate: #Predicate { $0.id == id })).first else { return }
+                if UIApplication.shared.applicationState == .active {
+                    router.experienceToPlay = exp
+                } else {
+                    let content = UNMutableNotificationContent()
+                    content.title = "Play \(exp.title)"
+                    content.body = "Started from your Apple Watch. Tap to play it here."
+                    content.sound = .default
+                    content.userInfo = ["experience": exp.id.uuidString, "play": true]
+                    UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: "emotion.watchplay.\(exp.id.uuidString)", content: content, trigger: nil))
+                }
+            }
         }
         .onChange(of: scenePhase) { _, phase in
             switch phase {
@@ -142,9 +161,11 @@ final class CueNotificationBridge: NSObject, UNUserNotificationCenterDelegate {
     private var onCue: ((Feeling, UUID?) -> Void)?
     private var onDeliver: ((Feeling, UUID?) -> Void)?
     private var onCalm: (() -> Void)?
+    private var onPlay: ((UUID) -> Void)?
     private weak var previous: UNUserNotificationCenterDelegate?
 
-    func install(onCue: @escaping (Feeling, UUID?) -> Void, onDeliver: @escaping (Feeling, UUID?) -> Void, onCalm: @escaping () -> Void) {
+    func install(onCue: @escaping (Feeling, UUID?) -> Void, onDeliver: @escaping (Feeling, UUID?) -> Void, onCalm: @escaping () -> Void, onPlay: @escaping (UUID) -> Void) {
+        self.onPlay = onPlay
         self.onCue = onCue
         self.onDeliver = onDeliver
         self.onCalm = onCalm
@@ -157,8 +178,11 @@ final class CueNotificationBridge: NSObject, UNUserNotificationCenterDelegate {
         let raw = info["feeling"] as? String
         let expID = (info["experience"] as? String).flatMap(UUID.init(uuidString:))
         let calm = info["calm"] != nil
+        let play = info["play"] != nil
         Task { @MainActor in
-            if calm {
+            if play, let expID {
+                self.onPlay?(expID)
+            } else if calm {
                 self.onCalm?()
             } else if let raw, let feeling = Feeling(rawValue: raw) {
                 self.onDeliver?(feeling, expID)
@@ -196,7 +220,7 @@ struct EmotionTabView: View {
             NavigationStack(path: $router.meditatePath) { MeditateSelectView().emotionDestinations() }
                 .tabItem { Label("Meditate", systemImage: "water.waves") }.tag(ETab.meditate)
             NavigationStack(path: $router.ringPath) { RingSettingsView().emotionDestinations() }
-                .tabItem { Label("Ring", systemImage: "circle.circle") }.tag(ETab.ring)
+                .tabItem { Label("Devices", systemImage: "dot.radiowaves.left.and.right") }.tag(ETab.ring)
         }
         .toolbarBackground(EColor.tabBar, for: .tabBar)
         .toolbarBackground(.visible, for: .tabBar)

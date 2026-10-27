@@ -1,18 +1,29 @@
 import Foundation
 import Observation
+import SwiftData
 import WatchConnectivity
 
-/// Where touches play. Stored per phone; "Both" is the default so a paired watch just works.
+/// How touches are routed when more than one device is in use. The ring comes first.
 enum TouchTarget: String, CaseIterable, Identifiable {
-    case ring, watch, both
+    /// The ring when it's connected; the watch only when no ring is connected.
+    case ringFirst
+    /// The ring and the watch together.
+    case both
     var id: String { rawValue }
     var label: String {
         switch self {
-        case .ring: "Ring"
-        case .watch: "Watch"
+        case .ringFirst: "Ring first"
         case .both: "Both"
         }
     }
+    var detail: String {
+        switch self {
+        case .ringFirst: "Touches go to your ring. Your watch takes over when the ring isn't connected."
+        case .both: "Every touch plays on your ring and your watch together."
+        }
+    }
+    /// Older builds stored "ring", "watch" or "both".
+    init(stored: String?) { self = stored == "both" ? .both : .ringFirst }
 }
 
 /// The link to the Kinnora app on a paired Apple Watch (WatchConnectivity).
@@ -36,15 +47,106 @@ final class WatchLink: NSObject {
     private(set) var lastSentAt: Date?
     private(set) var lastError: String?
 
-    var target: TouchTarget = TouchTarget(rawValue: UserDefaults.standard.string(forKey: WatchLink.targetKey) ?? "") ?? .both {
+    var target: TouchTarget = TouchTarget(stored: UserDefaults.standard.string(forKey: WatchLink.targetKey)) {
         didSet { UserDefaults.standard.set(target.rawValue, forKey: Self.targetKey) }
     }
 
+    static let useWatchKey = "emotion.useWatch"
+    /// Kinnora's "Use a watch" switch (Devices tab). Off = nothing is sent to the watch.
+    var useWatch: Bool = UserDefaults.standard.object(forKey: WatchLink.useWatchKey) as? Bool ?? true {
+        didSet {
+            UserDefaults.standard.set(useWatch, forKey: Self.useWatchKey)
+            rebuildReminders()
+        }
+    }
+
+    static let remindersKey = "emotion.watchReminders"
+    /// "Reminders on the watch": with the watch app installed, the watch delivers the reminder plan
+    /// itself and the iPhone shows no cue notifications of its own.
+    var remindersOnWatch: Bool = UserDefaults.standard.object(forKey: WatchLink.remindersKey) as? Bool ?? true {
+        didSet {
+            UserDefaults.standard.set(remindersOnWatch, forKey: Self.remindersKey)
+            rebuildReminders()
+        }
+    }
+    var takesOverReminders: Bool { useWatch && remindersOnWatch && isPaired && isAppInstalled }
+
+    /// The watch asked to play an experience on the iPhone (set by the root view).
+    var onStartExperience: ((UUID) -> Void)?
+    private(set) var lastSyncAt: Date?
+    @ObservationIgnored private var context: ModelContext?
+    @ObservationIgnored private var planObserver: NSObjectProtocol?
+
+    /// Gives the link the app's data, so it can send experiences and the reminder plan to the watch.
+    func attach(_ context: ModelContext) {
+        self.context = context
+        planObserver = NotificationCenter.default.addObserver(forName: ReminderScheduler.planChanged, object: nil, queue: .main) { [weak self] _ in
+            Task { @MainActor in self?.sync() }
+        }
+        sync()
+    }
+
+    private func rebuildReminders() {
+        guard let context else { return }
+        ReminderScheduler.rebuild(context: context) // posts planChanged → sync
+    }
+
+    /// Sends the experiences and the reminder plan as application context: the watch gets the latest
+    /// copy even if its app isn't running, and keeps it for when the phone is out of reach.
+    func sync() {
+        guard WCSession.isSupported(), WCSession.default.activationState == .activated, isPaired, isAppInstalled,
+              useWatch, let context else { return }
+        let experiences = (try? context.fetch(FetchDescriptor<Experience>())) ?? []
+        let scheduled = "scheduled"
+        let now = Date()
+        let events = ((try? context.fetch(FetchDescriptor<ReminderEvent>(
+            predicate: #Predicate { $0.status == scheduled && $0.scheduledAt > now },
+            sortBy: [SortDescriptor(\.scheduledAt)]))) ?? []).filter { !$0.isTest }.prefix(60)
+
+        func onFirst(_ p: TouchPattern) -> [Int] { p.startsWithVibration ? p.durationsMs : [0] + p.durationsMs }
+
+        let exps: [[String: Any]] = experiences.prefix(40).map { exp in
+            let track = exp.track
+            let duration = max(1, track.durationS)
+            let n = max(1, exp.feelings.count)
+            let custom = exp.customTouchData == nil ? nil : exp.touch
+            let cues: [[String: Any]] = track.cueMarkersS.filter { $0 < duration }.map { at in
+                let index = min(n - 1, Int(Double(at) / Double(duration) * Double(n)))
+                let feeling = exp.feelings.isEmpty ? Feeling.gratitude : exp.feelings[index]
+                return ["at": at, "feeling": feeling.rawValue, "durations": onFirst(custom ?? feeling.touch)]
+            }
+            return ["id": exp.id.uuidString, "title": exp.title, "feelings": exp.feelings.map(\.rawValue),
+                    "durationS": duration, "cues": cues]
+        }
+        let rems: [[String: Any]] = events.map { event in
+            let exp = experiences.first { $0.id == event.experienceID }
+            let text = ReminderScheduler.cueText(feeling: event.feeling, experience: exp)
+            var r: [String: Any] = ["id": event.id.uuidString, "at": event.scheduledAt.timeIntervalSince1970 * 1000,
+                                    "title": text.title, "body": text.body, "feeling": event.feeling.rawValue,
+                                    "durations": onFirst(exp?.touchSequence ?? event.feeling.touch)]
+            if let exp { r["experienceID"] = exp.id.uuidString }
+            return r
+        }
+        // The watch only delivers reminders while it has taken them over.
+        let payload: [String: Any] = ["type": "sync", "experiences": exps, "reminders": takesOverReminders ? rems : [],
+                                      "syncedAt": now.timeIntervalSince1970 * 1000]
+        do {
+            try WCSession.default.updateApplicationContext(payload)
+            lastSyncAt = now
+        } catch {
+            lastError = error.localizedDescription
+        }
+    }
+
+    fileprivate func received(_ payload: [String: Any]) {
+        guard payload["type"] as? String == "startExperience",
+              let raw = payload["id"] as? String, let id = UUID(uuidString: raw) else { return }
+        onStartExperience?(id)
+    }
+
     var isSupported: Bool { WCSession.isSupported() }
-    /// The watch can play a touch right now and the setting wants it there.
-    var canPlay: Bool { target != .ring && isReachable }
-    /// Touches should skip the ring: the person chose "Watch" and the watch is there to take them.
-    var replacesRing: Bool { target == .watch && isReachable }
+    /// The watch is in use and can play a touch right now.
+    var available: Bool { useWatch && isReachable }
 
     func activate() {
         guard WCSession.isSupported() else { return }
@@ -52,11 +154,11 @@ final class WatchLink: NSObject {
         WCSession.default.activate()
     }
 
-    /// Sends a touch to the watch. `force` ignores the setting (the "Test watch" button).
-    /// Returns whether it was sent.
+    /// Sends a touch to the watch (routing is decided by `RingHapticsService`). `force` skips the
+    /// "Use a watch" switch, for the test button. Returns whether it was sent.
     @discardableResult
     func play(_ pattern: TouchPattern, force: Bool = false) -> Bool {
-        guard WCSession.isSupported(), isReachable, force || target != .ring else { return false }
+        guard WCSession.isSupported(), isReachable, force || useWatch else { return false }
         // The watch expects on/off/on…; a pattern that starts with a pause gets a 0 ms "on" first.
         let durations = pattern.startsWithVibration ? pattern.durationsMs : [0] + pattern.durationsMs
         let message: [String: Any] = [
@@ -73,9 +175,12 @@ final class WatchLink: NSObject {
     }
 
     fileprivate func update(paired: Bool, installed: Bool, reachable: Bool) {
+        let changed = paired != isPaired || installed != isAppInstalled
         isPaired = paired
         isAppInstalled = installed
         isReachable = reachable
+        // Watch app installed or removed: who delivers reminders may have changed.
+        if changed { rebuildReminders() }
     }
 
     /// One line for the Ring tab.
@@ -99,6 +204,14 @@ extension WatchLink: WCSessionDelegate {
     }
     nonisolated func sessionReachabilityDidChange(_ session: WCSession) { push(session) }
     nonisolated func sessionWatchStateDidChange(_ session: WCSession) { push(session) }
+    nonisolated func session(_ session: WCSession, didReceiveMessage message: [String: Any]) {
+        let id = message["id"] as? String, type = message["type"] as? String
+        Task { @MainActor in self.received(["type": type as Any, "id": id as Any]) }
+    }
+    nonisolated func session(_ session: WCSession, didReceiveUserInfo userInfo: [String: Any] = [:]) {
+        let id = userInfo["id"] as? String, type = userInfo["type"] as? String
+        Task { @MainActor in self.received(["type": type as Any, "id": id as Any]) }
+    }
     nonisolated func sessionDidBecomeInactive(_ session: WCSession) {}
     nonisolated func sessionDidDeactivate(_ session: WCSession) {
         // Switching watches: activate again for the new one.

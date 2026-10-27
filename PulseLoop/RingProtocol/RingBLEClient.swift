@@ -110,6 +110,11 @@ final class RingBLEClient: NSObject {
     private(set) var activeDeviceType: RingDeviceType?
     private(set) var activeWearableModelID: String?
     var activeWearableModel: WearableModel? { WearableModel.model(id: activeWearableModelID) }
+
+    /// Kinnora's "Use a ring" switch (Devices tab). Off = never reconnect to the ring by itself.
+    /// Pairing a ring by hand still works and turns the switch back on.
+    nonisolated static let ringEnabledKey = "emotion.useRing"
+    nonisolated static var ringEnabled: Bool { UserDefaults.standard.object(forKey: ringEnabledKey) as? Bool ?? true }
     /// The name the connected ring itself advertises (e.g. "R09_5A1C"): what it's called in Bluetooth
     /// settings and in the ring's own app. nil when not connected.
     var connectedDeviceName: String? {
@@ -261,6 +266,8 @@ final class RingBLEClient: NSObject {
     /// - Parameter preferredFamily: the family the *user* declared at pairing (the app-type picker on a
     ///   Colmi card). Non-nil wins over the scan's auto-match — see `coordinatorType(preferredFamily:autoMatched:)`.
     func connect(to id: UUID, selectedModelID: String? = nil, preferredFamily: RingDeviceType? = nil) {
+        // Pairing a ring by hand means the person uses one.
+        UserDefaults.standard.set(true, forKey: Self.ringEnabledKey)
         // Prefer the freshly-scanned object; fall back to the system cache (paired/known).
         guard let target = discoveredPeripherals[id] ?? central.retrievePeripherals(withIdentifiers: [id]).first else {
             lastError = "Ring no longer available; scan again."
@@ -289,7 +296,7 @@ final class RingBLEClient: NSObject {
 
     /// Silently reconnect to the last paired ring (used on launch). Falls back to scanning.
     func connectLastKnown() {
-        guard isBluetoothReady, let id = lastKnownIdentifier else { return }
+        guard Self.ringEnabled, isBluetoothReady, let id = lastKnownIdentifier else { return }
         if let known = central.retrievePeripherals(withIdentifiers: [id]).first {
             beginConnect(
                 to: known,
@@ -773,7 +780,7 @@ extension RingBLEClient: CBCentralManagerDelegate {
     nonisolated func centralManager(_ central: CBCentralManager, willRestoreState dict: [String: Any]) {
         MainActor.assumeIsolated {
             let restored = (dict[CBCentralManagerRestoredStatePeripheralsKey] as? [CBPeripheral]) ?? []
-            guard peripheral == nil, let target = restored.first else { return }
+            guard Self.ringEnabled, peripheral == nil, let target = restored.first else { return }
             autoReconnect = true
             peripheral = target
             target.delegate = self

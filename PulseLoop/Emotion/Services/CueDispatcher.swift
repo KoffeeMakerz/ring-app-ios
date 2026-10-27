@@ -142,7 +142,7 @@ final class CueDispatcher {
                 latest.status = "missed"
                 latest.deliveredVia = "ring not connected after \(Self.maxAttempts) tries"
             } else {
-                if !services.haptics.usesSimulator, services.client.hasLastKnownRing { services.client.connectLastKnown() }
+                if !services.haptics.usesSimulator, services.haptics.useRing, services.client.hasLastKnownRing { services.client.connectLastKnown() }
                 scheduleRetry()
             }
             try? context.save()
@@ -165,8 +165,7 @@ final class CueDispatcher {
         event.delaySeconds = max(0, Int(now.timeIntervalSince(event.scheduledAt)))
         event.deliveredVia = trigger.rawValue
         try? context.save()
-        let places = [services.haptics.isRingConnected && !services.watch.replacesRing ? "ring" : nil,
-                      services.watch.canPlay ? "watch" : nil].compactMap { $0 }.joined(separator: " + ")
+        let places = services.haptics.routeLabel
         logWake(trigger, "SENT to \(places) · \(event.delaySeconds! / 60) min late")
 
         // Ask iOS for enough background time to send the whole sequence.
