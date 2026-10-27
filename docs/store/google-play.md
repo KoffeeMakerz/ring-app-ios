@@ -7,7 +7,6 @@ Last updated 2026-10-25. Policy names are Google Play Developer Policy sections.
 | Area | Policy | Status | What to do |
 |---|---|---|---|
 | Self-update (`UpdateChecker`, `REQUEST_INSTALL_PACKAGES`) | Device and Network Abuse | **Blocker** | Play apps can't download or install their own updates. Remove `REQUEST_INSTALL_PACKAGES` and turn off the update checker in the Play build (a `play` flavor, or `BuildConfig` off). Keep it only for the GitHub APK build. |
-| Exact alarms in the Wear OS app (`USE_EXACT_ALARM`) | Exact alarm permission | **Blocker** | `USE_EXACT_ALARM` is only for alarm-clock and calendar apps. Keep `SCHEDULE_EXACT_ALARM` (user-granted) and remove `USE_EXACT_ALARM` from `wear/src/main/AndroidManifest.xml`. |
 | Third-party AI in the original health screens (the Coach uses OpenAI, Google Gemini and MiniMax) | User Data, AI-generated content | **Blocker** | Disclose it in the app before sending, in the privacy policy and in the Data safety form. Or remove or hide the Coach in the Kinnora build. If the Coach generates content, it needs an in-app way to report offensive output. |
 
 ## To do before submitting
@@ -20,7 +19,6 @@ Last updated 2026-10-25. Policy names are Google Play Developer Policy sections.
 | Location (fine and coarse) | Permissions, location | Check | Must be needed by a visible feature (workouts or BLE on old Android). No background location is requested; keep it that way. |
 | Camera | Permissions | Check | Only if a visible feature uses it (barcode scan in the original screens). Otherwise remove it. |
 | Data safety form | User Data | To do | Must match reality: health data stays on the phone or goes to Health Connect; the Coach's AI providers if kept. (Strava was removed on 2026-10-25.) |
-| Data safety form | User Data | To do | Must match reality: health data stays on the phone or goes to Health Connect; the Coach's AI providers if kept; Strava if kept. |
 | Wellbeing wording | Misleading claims | To do | Same rule as Apple: "practise a feeling", "reminds you to breathe"; no treatment claims. |
 | Target API level | Target API | OK | Phone app targets 35. Wear app targets 34: raise it before Wear submission if Play requires a newer level. |
 | Music and image rights | Intellectual property | Check | ElevenLabs commercial plan; image credits list. |
@@ -38,10 +36,13 @@ Last updated 2026-10-25. Policy names are Google Play Developer Policy sections.
 | "Play on phone" from the watch | OK | A notification opens the player when Kinnora isn't on screen (`kinnora_watch` channel); no background activity launch. |
 | Wear OS app (`:wear`) | To do | Same applicationId and signing key as the phone app. Needs Wear screenshots and must pass Wear OS app quality: round screens, works when the phone is away. Wear apps are reviewed separately. Branch `feature/watch-extension`. |
 | Promo video | OK | Live-action is allowed on Play (YouTube link), so the 2-minute and 30-second cuts can be used. |
+| Reminder cues on Android | OK | One inexact alarm for the next cue (`setAndAllowWhileIdle`), no exact-alarm permission. `RECEIVE_BOOT_COMPLETED` only to plan again after a restart. Notifications on the `kinnora_cues` channel; the notification permission is asked in onboarding when "Ring reminders" is on. Reminder history stays on the phone. |
+| Onboarding consent | OK | Same "How this works" screen as iOS: a practice, not a promise; wellness app, not a medical device. Heart data and photos are off until switched on. |
 | Apple Intelligence images | Not applicable | iPhone only. Android has no free on-device image generation. |
 
 ## Change log
 
+- 2026-10-27: Android brought level with iOS: Home and Practice tabs, onboarding with consent, reminders (planner, alarm, check-in, quiet hours), sent to the Wear OS watch too. New permission `RECEIVE_BOOT_COMPLETED` (normal permission, no declaration). No exact alarms on the phone.
 - 2026-10-27: Removed `USE_EXACT_ALARM` from the Wear OS app (blocker fixed). Wear app v2: experiences (play on the watch or the phone), reminders list, reminders delivered by the watch. Devices tab with ring and watch switches; the ring comes first. Android still has no reminder planner, so the watch's list stays empty on Android for now.
 - 2026-10-25: Strava removed from the app (no OAuth link, no `pulseloop://` redirect, no client secret in the build, no workout uploads; old tokens are deleted on launch). Removes Strava from the Data safety form.
 - 2026-10-25: Note created. Flagged self-update, `USE_EXACT_ALARM` in the Wear app and the Coach's third-party AI as blockers. Added Health Connect, foreground service, Wear OS and promo video notes.
