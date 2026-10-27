@@ -53,7 +53,7 @@ site/
 *~
 CLAUDE.md
 AGENT.md
-# Strava API credentials (developer-local, see StravaSecrets.swift)
+# Strava was removed; keep its old credentials file out of git if one is still around locally.
 PulseLoop/Integrations/Strava/StravaSecrets.plist
 
 # raw/finished practice-track working files

@@ -190,8 +190,6 @@ struct ActivityDetailView: View {
                         .padding(.horizontal, 4)
                     }
 
-                    StravaUploadRow(session: session)
-
                     Button(role: .destructive) {
                         confirmingDelete = true
                     } label: {

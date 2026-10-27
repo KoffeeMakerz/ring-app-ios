@@ -136,7 +136,7 @@ final class CalmCueMonitor {
         let token = BackgroundTime.begin(name: "emotion.calm")
         if services.haptics.canDeliverTouch {
             services.haptics.play(.calmCue)
-            append("\(trigger) · SENT calm cue\(services.watch.canPlay ? " (+ watch)" : "") · \(level.label): \(reason)")
+            append("\(trigger) · SENT calm cue to \(services.haptics.routeLabel) · \(level.label): \(reason)")
         } else {
             append("\(trigger) · tense (\(reason)) · ring not connected, notification only")
             if !services.haptics.usesSimulator, services.client.hasLastKnownRing { services.client.connectLastKnown() }

@@ -1,15 +1,28 @@
 # Watches: touches on the wrist
 
-The ring app sends every touch it plays to a paired watch as well: practice, experiences,
-reminders, the calm cue and tests. The Ring tab's watch card has a **Touches play on** setting:
+The ring app sends every touch it plays to the devices you use: practice, experiences, reminders, the calm cue and tests.
+
+## Devices tab (was "Ring")
 
 | Setting | Behaviour |
 |---|---|
-| **Both** (default) | Touches play on the ring and on the watch. |
-| **Ring** | Touches play on the ring only. |
-| **Watch** | Touches play on the watch only. When no watch is reachable, they fall back to the ring. |
+| **Use a ring** (on by default) | Off: no touches go to a ring; it is disconnected and never auto-reconnected. |
+| **Use a watch** (on by default) | Off: nothing is sent to the watch. |
+| **Ring first** (default) | Touches go to the ring; the watch plays only when no ring is connected. |
+| **Both** | The ring and the watch play every touch together. |
 
-A reminder or calm cue now counts as delivered when either the ring or the watch can play it.
+With neither a ring nor a watch, the app still works: the phone vibrates (Android) or the touch is shown on screen. First launch asks which devices you use: onboarding on iOS, a one-time question on Android.
+
+## The watch apps (v2)
+
+Both watch apps look alike, in the spirit of Apple's Mindfulness app:
+
+- **Home tiles:** Experiences, Feel a touch, Reminders, and (Apple Watch only) Listen to iPhone.
+- **Experiences:** synced from the phone. **Play here** shows a breathing bloom in the current feeling's colour and plays each cue's touch on the wrist, with no music. **Play on phone** starts it on the phone. If Kinnora isn't on screen there, a notification opens the player.
+- **Reminders:** the upcoming plan, delivered by the watch itself.
+  - Apple Watch: as notifications; tap or **Start** plays the touch. The iPhone schedules none while the watch has them, so there are no duplicates.
+  - Wear OS: exact alarms play each touch on time, even with the phone asleep.
+- **Sync:** application context on iOS, data item `/kinora/sync` on Android. Both keep the latest copy on the watch.
 
 ## Wear OS (Pixel Watch, Galaxy Watch…) — Android app
 

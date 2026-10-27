@@ -17,6 +17,16 @@ struct HomeView: View {
     private var others: [Experience] { experiences.filter { $0.id != today?.id } }
     private var nextEvent: ReminderEvent? { events.first { $0.status == "scheduled" && $0.scheduledAt > Date() } }
 
+    /// The device a touch would go to now (ring first), for the header pill.
+    private var deviceIcon: String {
+        services.haptics.ringActive ? "circle.circle" : (services.watch.available ? "applewatch" : "circle.dashed")
+    }
+    private var deviceText: String {
+        if services.haptics.ringActive { return services.haptics.batteryPercent.map { "\($0)%" } ?? "On" }
+        if services.watch.available { return "Watch" }
+        return "Off"
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
@@ -28,13 +38,14 @@ struct HomeView: View {
                     Spacer()
                     Button { router.tab = .ring } label: {
                         HStack(spacing: 8) {
-                            Circle().fill(services.haptics.isRingConnected ? EColor.success : EColor.warning).frame(width: 8, height: 8)
-                            Text(services.haptics.batteryPercent.map { "\($0)%" } ?? (services.haptics.isRingConnected ? "On" : "Off")).font(EFont.body(13, .semibold))
+                            Circle().fill(services.haptics.canDeliverTouch ? EColor.success : EColor.warning).frame(width: 8, height: 8)
+                            Image(systemName: deviceIcon).font(.system(size: 13, weight: .semibold))
+                            Text(deviceText).font(EFont.body(13, .semibold))
                         }
                         .padding(.horizontal, 12).frame(height: 36).background(EColor.card, in: Capsule())
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel(services.haptics.isRingConnected ? "Ring connected" : "Ring not connected")
+                    .accessibilityLabel(services.haptics.canDeliverTouch ? "Devices: \(deviceText)" : "No device connected")
                 }
                 .padding(.top, 8)
 

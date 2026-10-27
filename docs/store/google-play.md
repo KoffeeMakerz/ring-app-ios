@@ -19,6 +19,7 @@ Last updated 2026-10-25. Policy names are Google Play Developer Policy sections.
 | Foreground service type `health` | Foreground service types | To do | Declare it in Play Console with a short video of the ring sync that needs it. |
 | Location (fine and coarse) | Permissions, location | Check | Must be needed by a visible feature (workouts or BLE on old Android). No background location is requested; keep it that way. |
 | Camera | Permissions | Check | Only if a visible feature uses it (barcode scan in the original screens). Otherwise remove it. |
+| Data safety form | User Data | To do | Must match reality: health data stays on the phone or goes to Health Connect; the Coach's AI providers if kept. (Strava was removed on 2026-10-25.) |
 | Data safety form | User Data | To do | Must match reality: health data stays on the phone or goes to Health Connect; the Coach's AI providers if kept; Strava if kept. |
 | Wellbeing wording | Misleading claims | To do | Same rule as Apple: "practise a feeling", "reminds you to breathe"; no treatment claims. |
 | Target API level | Target API | OK | Phone app targets 35. Wear app targets 34: raise it before Wear submission if Play requires a newer level. |
@@ -32,10 +33,15 @@ Last updated 2026-10-25. Policy names are Google Play Developer Policy sections.
 | Ring over Bluetooth | OK | `BLUETOOTH_SCAN` and `BLUETOOTH_CONNECT`. |
 | Calm cue | OK | Wellbeing wording only. |
 | Keep screen on during sessions | OK | `keepScreenOn` only while a session shows. |
+| Exact alarms in the Wear OS app | OK | `USE_EXACT_ALARM` removed (2026-10-27). Only `SCHEDULE_EXACT_ALARM`, which the user grants; reminders fall back to inexact alarms without it. |
+| Devices (ring / watch switches, ring first) | OK | Nothing is required: with no ring or watch the phone vibrates. Turning the ring off disconnects it and stops auto-reconnect. |
+| "Play on phone" from the watch | OK | A notification opens the player when Kinnora isn't on screen (`kinnora_watch` channel); no background activity launch. |
 | Wear OS app (`:wear`) | To do | Same applicationId and signing key as the phone app. Needs Wear screenshots and must pass Wear OS app quality: round screens, works when the phone is away. Wear apps are reviewed separately. Branch `feature/watch-extension`. |
 | Promo video | OK | Live-action is allowed on Play (YouTube link), so the 2-minute and 30-second cuts can be used. |
 | Apple Intelligence images | Not applicable | iPhone only. Android has no free on-device image generation. |
 
 ## Change log
 
+- 2026-10-27: Removed `USE_EXACT_ALARM` from the Wear OS app (blocker fixed). Wear app v2: experiences (play on the watch or the phone), reminders list, reminders delivered by the watch. Devices tab with ring and watch switches; the ring comes first. Android still has no reminder planner, so the watch's list stays empty on Android for now.
+- 2026-10-25: Strava removed from the app (no OAuth link, no `pulseloop://` redirect, no client secret in the build, no workout uploads; old tokens are deleted on launch). Removes Strava from the Data safety form.
 - 2026-10-25: Note created. Flagged self-update, `USE_EXACT_ALARM` in the Wear app and the Coach's third-party AI as blockers. Added Health Connect, foreground service, Wear OS and promo video notes.

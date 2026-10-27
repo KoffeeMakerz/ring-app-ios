@@ -221,15 +221,18 @@ struct PairRingScreen: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             if progress != nil { EOnboardingHeader(progress: progress) }
-            Text("Pair your ring").font(EFont.display(30)).padding(.top, 24).padding(.bottom, 10)
-            Text("Put the ring on and keep it close to your phone. It should have some charge.")
+            Text(progress != nil ? "Connect your devices" : "Pair your ring").font(EFont.display(30)).padding(.top, 24).padding(.bottom, 10)
+            Text(progress != nil
+                 ? "Kinnora plays each feeling as a touch on a smart ring, an Apple Watch, or both. The ring comes first when both are on. You can change this any time under Devices."
+                 : "Put the ring on and keep it close to your phone. It should have some charge.")
                 .font(EFont.body(15)).foregroundStyle(EColor.textSecondary)
             ZStack {
                 Circle().stroke(EColor.accent.opacity(0.2)).frame(width: 190)
                 Circle().stroke(EColor.accent.opacity(0.4)).frame(width: 140)
                 Circle().stroke(EColor.accent, lineWidth: 10).frame(width: 88)
             }
-            .frame(maxWidth: .infinity, minHeight: 220).accessibilityHidden(true)
+            .scaleEffect(progress != nil ? 0.55 : 1)
+            .frame(maxWidth: .infinity, minHeight: progress != nil ? 120 : 220).accessibilityHidden(true)
 
             #if DEBUG
             SectionLabel("Developer").padding(.bottom, 10)
@@ -255,8 +258,8 @@ struct PairRingScreen: View {
             .padding(.bottom, 22)
             #endif
 
-            SectionLabel("Real ring").padding(.bottom, 10)
-            Button { services.simulator.isEnabled = false; showRealPairing = true } label: {
+            SectionLabel("Smart ring").padding(.bottom, 10)
+            Button { services.simulator.isEnabled = false; services.haptics.useRing = true; showRealPairing = true } label: {
                 HStack(spacing: 14) {
                     Circle().strokeBorder(EColor.text, lineWidth: 5).frame(width: 36, height: 36)
                     VStack(alignment: .leading, spacing: 2) {
@@ -269,9 +272,32 @@ struct PairRingScreen: View {
                 .padding(.horizontal, 16).frame(minHeight: 68).eCard(radius: 18)
             }
             .buttonStyle(.plain)
+            .opacity(services.haptics.useRing ? 1 : 0.5)
+            if progress != nil {
+                Button(services.haptics.useRing ? "I don't have a ring" : "I have a ring after all") {
+                    services.haptics.useRing.toggle()
+                }
+                .buttonStyle(TextLinkButtonStyle())
+                .padding(.top, 6)
+
+                SectionLabel("Apple Watch").padding(.top, 14).padding(.bottom, 10)
+                @Bindable var watch = services.watch
+                Toggle(isOn: $watch.useWatch) {
+                    HStack(spacing: 14) {
+                        Image(systemName: "applewatch").font(.system(size: 20)).frame(width: 36, height: 36)
+                            .accessibilityHidden(true)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Use my Apple Watch").font(EFont.body(15, .semibold))
+                            Text(watch.statusText).font(EFont.body(13)).foregroundStyle(EColor.textSecondary)
+                        }
+                    }
+                }
+                .tint(EColor.accent)
+                .padding(.horizontal, 16).frame(minHeight: 68).eCard(radius: 18)
+            }
             Spacer()
             if let onDone {
-                Button(services.haptics.isRingConnected ? "Continue" : "Skip for now", action: onDone)
+                Button(services.haptics.canDeliverTouch ? "Continue" : (progress != nil && !services.haptics.useRing ? "Continue" : "Skip for now"), action: onDone)
                     .buttonStyle(PrimaryButtonStyle())
             }
         }

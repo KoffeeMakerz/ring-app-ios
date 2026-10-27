@@ -13,6 +13,7 @@
 		AB0000000000000000000001 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 41298ABE2FCE7CD300778428 /* WidgetKit.framework */; };
 		AB0000000000000000000002 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 41298AC02FCE7CD300778428 /* SwiftUI.framework */; };
 		AB0000000000000000000003 /* PulseLoopWidgetsExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = AB0000000000000000000004 /* PulseLoopWidgetsExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		AC0000000000000000000002 /* KinnoraWatch.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = AC0000000000000000000001 /* KinnoraWatch.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -37,6 +38,13 @@
 			remoteGlobalIDString = AB000000000000000000000C;
 			remoteInfo = PulseLoopWidgetsExtension;
 		};
+		AC0000000000000000000004 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 4147614E2FCC0F81009EB0EF /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = AC0000000000000000000008;
+			remoteInfo = KinnoraWatch;
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -52,6 +60,17 @@
 			name = "Embed Foundation Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		AC0000000000000000000003 /* Embed Watch Content */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "$(CONTENTS_FOLDER_PATH)/Watch";
+			dstSubfolderSpec = 16;
+			files = (
+				AC0000000000000000000002 /* KinnoraWatch.app in Embed Watch Content */,
+			);
+			name = "Embed Watch Content";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
@@ -63,6 +82,7 @@
 		AA0000000000000000000002 /* PulseLoopTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PulseLoopTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		AB0000000000000000000004 /* PulseLoopWidgetsExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = PulseLoopWidgetsExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		AB0000000000000000000005 /* PulseLoopWidgetsExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = PulseLoopWidgetsExtension.entitlements; sourceTree = "<group>"; };
+		AC0000000000000000000001 /* KinnoraWatch.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = KinnoraWatch.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -110,6 +130,14 @@
 			);
 			target = AB000000000000000000000C /* PulseLoopWidgetsExtension */;
 		};
+		AC0000000000000000000007 /* Exceptions for "KinnoraWatch" folder in "KinnoraWatch" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+				README.md,
+			);
+			target = AC0000000000000000000008 /* KinnoraWatch */;
+		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -142,6 +170,14 @@
 				AB0000000000000000000008 /* Exceptions for "PulseLoopWidgets" folder in "PulseLoopWidgetsExtension" target */,
 			);
 			path = PulseLoopWidgets;
+			sourceTree = "<group>";
+		};
+		AC0000000000000000000006 /* KinnoraWatch */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				AC0000000000000000000007 /* Exceptions for "KinnoraWatch" folder in "KinnoraWatch" target */,
+			);
+			path = KinnoraWatch;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -179,6 +215,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		AC000000000000000000000A /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -199,6 +242,7 @@
 				414761582FCC0F81009EB0EF /* PulseLoop */,
 				41298AC22FCE7CD300778428 /* PulseLoopLiveActivity */,
 				AB000000000000000000000A /* PulseLoopWidgets */,
+				AC0000000000000000000006 /* KinnoraWatch */,
 				41298ABD2FCE7CD300778428 /* Frameworks */,
 				414761572FCC0F81009EB0EF /* Products */,
 				414763642FCCCC58009EB0EF /* Recovered References */,
@@ -212,6 +256,7 @@
 				AA0000000000000000000002 /* PulseLoopTests.xctest */,
 				41298ABC2FCE7CD300778428 /* PulseLoopLiveActivityExtension.appex */,
 				AB0000000000000000000004 /* PulseLoopWidgetsExtension.appex */,
+				AC0000000000000000000001 /* KinnoraWatch.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -257,12 +302,14 @@
 				414761532FCC0F81009EB0EF /* Frameworks */,
 				414761542FCC0F81009EB0EF /* Resources */,
 				41298AD52FCE7CD400778428 /* Embed Foundation Extensions */,
+				AC0000000000000000000003 /* Embed Watch Content */,
 			);
 			buildRules = (
 			);
 			dependencies = (
 				41298ACF2FCE7CD400778428 /* PBXTargetDependency */,
 				AB0000000000000000000007 /* PBXTargetDependency */,
+				AC0000000000000000000005 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				414761582FCC0F81009EB0EF /* PulseLoop */,
@@ -319,6 +366,28 @@
 			productReference = AB0000000000000000000004 /* PulseLoopWidgetsExtension.appex */;
 			productType = "com.apple.product-type.app-extension";
 		};
+		AC0000000000000000000008 /* KinnoraWatch */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = AC000000000000000000000E /* Build configuration list for PBXNativeTarget "KinnoraWatch" */;
+			buildPhases = (
+				AC0000000000000000000009 /* Sources */,
+				AC000000000000000000000A /* Frameworks */,
+				AC000000000000000000000B /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				AC0000000000000000000006 /* KinnoraWatch */,
+			);
+			name = KinnoraWatch;
+			packageProductDependencies = (
+			);
+			productName = KinnoraWatch;
+			productReference = AC0000000000000000000001 /* KinnoraWatch.app */;
+			productType = "com.apple.product-type.application";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -341,6 +410,9 @@
 					};
 					AB000000000000000000000C = {
 						CreatedOnToolsVersion = 26.5;
+					};
+					AC0000000000000000000008 = {
+						CreatedOnToolsVersion = 27.0;
 					};
 				};
 			};
@@ -365,6 +437,7 @@
 				AA0000000000000000000001 /* PulseLoopTests */,
 				41298ABB2FCE7CD300778428 /* PulseLoopLiveActivityExtension */,
 				AB000000000000000000000C /* PulseLoopWidgetsExtension */,
+				AC0000000000000000000008 /* KinnoraWatch */,
 			);
 		};
 /* End PBXProject section */
@@ -392,6 +465,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		AB000000000000000000000F /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		AC000000000000000000000B /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -429,6 +509,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		AC0000000000000000000009 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -446,6 +533,11 @@
 			isa = PBXTargetDependency;
 			target = AB000000000000000000000C /* PulseLoopWidgetsExtension */;
 			targetProxy = AB0000000000000000000006 /* PBXContainerItemProxy */;
+		};
+		AC0000000000000000000005 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = AC0000000000000000000008 /* KinnoraWatch */;
+			targetProxy = AC0000000000000000000004 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -834,6 +926,63 @@
 			};
 			name = Release;
 		};
+		AC000000000000000000000C /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = S6MCLWFZRA;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = KinnoraWatch/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Kinnora;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
+				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = dev.emotionringmy.ios;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 2.6.0;
+				PRODUCT_BUNDLE_IDENTIFIER = dev.emotionringmy.ios.watchkitapp;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				WATCHOS_DEPLOYMENT_TARGET = 10.0;
+			};
+			name = Debug;
+		};
+		AC000000000000000000000D /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = S6MCLWFZRA;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = KinnoraWatch/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Kinnora;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
+				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = dev.emotionringmy.ios;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 2.6.0;
+				PRODUCT_BUNDLE_IDENTIFIER = dev.emotionringmy.ios.watchkitapp;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				VALIDATE_PRODUCT = YES;
+				WATCHOS_DEPLOYMENT_TARGET = 10.0;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -878,6 +1027,15 @@
 			buildConfigurations = (
 				AB0000000000000000000010 /* Debug */,
 				AB0000000000000000000011 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		AC000000000000000000000E /* Build configuration list for PBXNativeTarget "KinnoraWatch" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AC000000000000000000000C /* Debug */,
+				AC000000000000000000000D /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

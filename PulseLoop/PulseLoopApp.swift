@@ -34,8 +34,6 @@ struct PulseLoopApp: App {
     private let widgetPublisher: WidgetSnapshotPublisher
     /// Retained so it keeps exporting newly-synced ring data into Apple Health.
     private let healthSyncPublisher: HealthSyncPublisher
-    /// Retained so it keeps pushing newly-finished workouts to Strava (automatic mode).
-    private let stravaSyncPublisher: StravaSyncPublisher
     /// Retained so the UNUserNotificationCenter delegate stays alive.
     private let notificationDelegate = CoachNotificationDelegate()
     /// Retained so a completed background sync can fire the due check-in on fresh data.
@@ -104,8 +102,8 @@ struct PulseLoopApp: App {
         self.widgetPublisher = widgetPublisher
         let healthSyncPublisher = HealthSyncPublisher(context: container.mainContext)
         self.healthSyncPublisher = healthSyncPublisher
-        let stravaSyncPublisher = StravaSyncPublisher(context: container.mainContext)
-        self.stravaSyncPublisher = stravaSyncPublisher
+        // Strava was removed from Kinnora: clear any token an older build left in the Keychain.
+        LegacyStravaCleanup.run()
         let mainContext = container.mainContext
         self.notificationDataTrigger = CoachNotificationDataTrigger {
             CoachNotificationService(modelContext: mainContext, coordinator: coordinator)
@@ -133,7 +131,6 @@ struct PulseLoopApp: App {
         diagnostics.start()
         widgetPublisher.start()
         healthSyncPublisher.start()
-        stravaSyncPublisher.start()
         notificationDataTrigger.start()
         // Reminder cues: phone-sent ring touches, delivered whenever iOS lets the app run.
         emotionServices.startReminderDelivery(context: container.mainContext)
@@ -185,7 +182,6 @@ struct PulseLoopApp: App {
             if !Self.isRunningUnitTests {
                 widgetPublisher.publish(reason: .scenePhase)
                 healthSyncPublisher.kick()
-                stravaSyncPublisher.kick()
             }
             guard phase == .active else { return }
             // Refresh the learned resting-HR baseline on foreground (6h-throttled no-op usually).

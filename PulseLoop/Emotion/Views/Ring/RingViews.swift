@@ -1,7 +1,8 @@
 import SwiftData
 import SwiftUI
 
-/// 5.1 Ring & settings.
+/// 5.1 Devices & settings: which devices Kinnora uses (ring, watch), how touches are routed, each
+/// device's card, then stats and settings.
 struct RingSettingsView: View {
     @Environment(EmotionServices.self) private var services
     @Environment(EmotionRouter.self) private var router
@@ -12,7 +13,11 @@ struct RingSettingsView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
-                Text("Ring").font(EFont.display(28)).padding(.top, 8)
+                Text("Devices").font(EFont.display(28)).padding(.top, 8)
+                DeviceChoiceCard()
+
+                if services.haptics.useRing {
+                SectionLabel("Ring").padding(.top, 6)
                 VStack(spacing: 14) {
                     HStack(spacing: 14) {
                         Circle().strokeBorder(services.haptics.usesSimulator ? EColor.debug : EColor.text, lineWidth: 7).frame(width: 48, height: 48)
@@ -39,9 +44,12 @@ struct RingSettingsView: View {
                     .buttonStyle(TextLinkButtonStyle())
                 }
                 .padding(16).eCard(radius: 22)
+                }
 
-                SectionLabel("Watch").padding(.top, 6)
-                WatchCard()
+                if services.watch.useWatch {
+                    SectionLabel("Watch").padding(.top, 6)
+                    WatchCard()
+                }
 
                 if let p = profiles.first {
                     @Bindable var profile = p
@@ -357,17 +365,22 @@ struct WatchCard: View {
                 }
                 Spacer()
             }
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Touches play on").font(EFont.body(13, .semibold)).foregroundStyle(EColor.textSecondary)
-                Picker("Touches play on", selection: $watch.target) {
-                    ForEach(TouchTarget.allCases) { Text($0.label).tag($0) }
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-            }
-            Text("The watch plays touches while Kinnora is open on it. Start a session on the watch to keep it listening with your wrist down. Reminders also show on the watch as notifications. With \"Watch\" chosen and no watch around, touches go to the ring.")
+            Text("The watch plays touches while Kinnora is open on it. Start a session on the watch to keep it listening with your wrist down.")
                 .font(EFont.body(12)).foregroundStyle(EColor.textMuted)
                 .fixedSize(horizontal: false, vertical: true)
+            if watch.isAppInstalled {
+                Toggle(isOn: $watch.remindersOnWatch) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Reminders on the watch").font(EFont.body(15, .semibold))
+                        Text(watch.remindersOnWatch
+                             ? "Your watch shows the upcoming reminders and taps each one with its feeling. Your iPhone stays quiet so you don't get two."
+                             : "Reminders come as iPhone notifications.")
+                            .font(EFont.body(12)).foregroundStyle(EColor.textMuted)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                .tint(EColor.accent)
+            }
             Button("Test watch") { watch.play(Feeling.gratitude.touch, force: true) }
                 .buttonStyle(SecondaryButtonStyle(height: 44))
                 .disabled(!watch.isReachable)
@@ -376,5 +389,58 @@ struct WatchCard: View {
             }
         }
         .padding(16).eCard(radius: 22)
+    }
+}
+
+
+/// Which devices Kinnora uses, and how touches are routed when both are in use (ring first).
+struct DeviceChoiceCard: View {
+    @Environment(EmotionServices.self) private var services
+
+    var body: some View {
+        @Bindable var haptics = services.haptics
+        @Bindable var watch = services.watch
+        VStack(alignment: .leading, spacing: 12) {
+            Toggle(isOn: $haptics.useRing) {
+                deviceLabel("Use a ring", icon: "circle.circle",
+                            detail: haptics.useRing ? (haptics.isRingConnected ? "\(haptics.ringName) connected" : "Not connected") : "Off: the ring isn't connected or used")
+            }
+            Divider().overlay(EColor.line)
+            Toggle(isOn: $watch.useWatch) {
+                deviceLabel("Use a watch", icon: "applewatch",
+                            detail: watch.useWatch ? watch.statusText : "Off: nothing is sent to the watch")
+            }
+            if haptics.useRing && watch.useWatch {
+                Divider().overlay(EColor.line)
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Touches go to").font(EFont.body(13, .semibold)).foregroundStyle(EColor.textSecondary)
+                    Picker("Touches go to", selection: $watch.target) {
+                        ForEach(TouchTarget.allCases) { Text($0.label).tag($0) }
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    Text(watch.target.detail).font(EFont.body(12)).foregroundStyle(EColor.textMuted)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            if !haptics.useRing && !watch.useWatch {
+                Text("With no device, touches can't be felt. Reminders still come as notifications.")
+                    .font(EFont.body(12)).foregroundStyle(EColor.warning)
+            }
+        }
+        .tint(EColor.accent)
+        .padding(16).eCard(radius: 22)
+    }
+
+    private func deviceLabel(_ title: String, icon: String, detail: String) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: icon).font(.system(size: 18)).frame(width: 36, height: 36)
+                .background(EColor.cardRaised, in: Circle()).accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title).font(EFont.body(15, .semibold))
+                Text(detail).font(EFont.body(12)).foregroundStyle(EColor.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
     }
 }

@@ -3,29 +3,17 @@
 The companion watch app for the Kinnora iPhone app. It plays the touches the iPhone sends, so
 the wrist feels the same feeling as the ring.
 
-## One-time Xcode setup
+## Xcode target
 
-The source is ready in this folder. Xcode has to create the watch target, because a watch app
-must be a target of the iPhone app's project.
+The `KinnoraWatch` watchOS target is already in `PulseLoop.xcodeproj` (added 2026-10-27). It is
+built from this folder (`Info.plist` and this README are excluded), embedded in the iPhone app
+under "Embed Watch Content", and installs with it.
 
-1. Open `PulseLoop.xcodeproj`. Choose **File → New → Target… → watchOS → App**, then Next.
-2. Fill in the form:
-   - **Product Name:** `KinnoraWatch`.
-   - **Watch App for Existing iOS App:** checked, with **PulseLoop** selected.
-   - **Interface:** SwiftUI. **Language:** Swift.
-   - Leave Notification Scene off.
-   Then press Finish, and press Activate if asked.
-3. Xcode creates a folder called `KinnoraWatch Watch App`. Delete its `ContentView.swift` and
-   `KinnoraWatchApp.swift` (Move to Trash). Then drag every `.swift` file from this
-   `KinnoraWatch/` folder into it. Choose **Copy items if needed**, with only the watch target ticked.
-4. Select the watch target. Under **Signing & Capabilities**:
-   - pick your team;
-   - press **+ Capability → Background Modes**;
-   - tick **Session type: Mindfulness**. "Start session" on the watch needs this.
-5. Under **General**, set **Display Name** to `Kinnora`. The bundle ID should be the iPhone app's ID plus
-   `.watchkitapp`; Xcode fills that in.
-6. Run the **PulseLoop** scheme on your iPhone. The watch app installs with it. If it doesn't
-   appear, open the Watch app on the iPhone and install Kinnora under **Available Apps**.
+- Bundle ID `dev.emotionringmy.ios.watchkitapp`, companion of `dev.emotionringmy.ios`, watchOS 10+.
+- `Info.plist` adds `WKApplication` and the `mindfulness` background mode that **Start session**
+  needs.
+- Run the **PulseLoop** scheme on the iPhone. If the watch app doesn't appear on the watch, open
+  the Watch app on the iPhone → Available Apps → Install.
 
 ## How it works
 

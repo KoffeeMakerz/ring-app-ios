@@ -11,6 +11,21 @@ import UserNotifications
 @MainActor
 final class ReminderScheduler {
     static let notificationCategory = "emotion.cue"
+    /// Posted after the plan is rebuilt, so the watch gets the new plan.
+    static let planChanged = Notification.Name("emotion.reminders.planChanged")
+    /// True while the paired Apple Watch delivers the reminders itself (set by `EmotionServices`).
+    /// The iPhone then shows no cue notifications of its own, so nobody gets two.
+    static var watchTakesOver: () -> Bool = { false }
+
+    /// The notification title and text for a cue (also sent to the watch).
+    static func cueText(feeling: Feeling, experience: Experience?) -> (title: String, body: String) {
+        if let exp = experience {
+            let arc = exp.feelings.map { $0.name.lowercased() }.joined(separator: ", then ")
+            let picture = exp.visionPoints.first.map { "Picture it: \($0). " } ?? ""
+            return (exp.title, "\(picture)Feel \(arc).")
+        }
+        return ("\(feeling.name) cue", feeling.cuePrompt)
+    }
 
     /// Random (or fixed) times for one rule on one day, respecting window and quiet hours.
     static func plannedTimes(for rule: ReminderRule, on day: Date, profile: EmotionProfile, calendar: Calendar = .current) -> [Date] {
@@ -76,6 +91,7 @@ final class ReminderScheduler {
         scheduleNotifications(planned.map { rule, date in
             CueItem(feeling: rule.feeling, date: date, experience: experiences.first { $0.id == rule.experienceID })
         })
+        NotificationCenter.default.post(name: planChanged, object: nil)
     }
 
     struct CueItem {
@@ -85,13 +101,12 @@ final class ReminderScheduler {
     }
 
     private static func scheduleNotifications(_ items: [CueItem]) {
-        let payload: [(title: String, body: String, info: [String: String], date: Date)] = items.prefix(60).map { item -> (title: String, body: String, info: [String: String], date: Date) in
-            if let exp = item.experience {
-                let arc = exp.feelings.map { $0.name.lowercased() }.joined(separator: ", then ")
-                let picture = exp.visionPoints.first.map { "Picture it: \($0). " } ?? ""
-                return (exp.title, "\(picture)Feel \(arc).", ["feeling": item.feeling.rawValue, "experience": exp.id.uuidString], item.date)
-            }
-            return ("\(item.feeling.name) cue", item.feeling.cuePrompt, ["feeling": item.feeling.rawValue], item.date)
+        // The watch delivers them itself: clear ours and schedule none.
+        let payload: [(title: String, body: String, info: [String: String], date: Date)] = watchTakesOver() ? [] : items.prefix(60).map { item -> (title: String, body: String, info: [String: String], date: Date) in
+            let text = cueText(feeling: item.feeling, experience: item.experience)
+            var info = ["feeling": item.feeling.rawValue]
+            if let exp = item.experience { info["experience"] = exp.id.uuidString }
+            return (text.title, text.body, info, item.date)
         }
         let center = UNUserNotificationCenter.current()
         center.getPendingNotificationRequests { requests in

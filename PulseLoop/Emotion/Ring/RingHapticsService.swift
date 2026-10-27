@@ -23,8 +23,36 @@ final class RingHapticsService {
     var usesSimulator: Bool { simulator.isEnabled }
 
     var isRingConnected: Bool { usesSimulator ? simulator.connected : client.state == .connected }
+
+    /// Kinnora's "Use a ring" switch (Devices tab). Off: no touches go to the ring, it's disconnected
+    /// and never reconnected by itself. Pairing a ring turns it back on.
+    var useRing: Bool = RingBLEClient.ringEnabled {
+        didSet {
+            UserDefaults.standard.set(useRing, forKey: RingBLEClient.ringEnabledKey)
+            if useRing { client.connectLastKnown() } else if client.state != .idle { client.disconnect() }
+        }
+    }
+    /// The ring is in use and connected.
+    var ringActive: Bool { useRing && isRingConnected }
+
+    /// Where a touch goes now. The ring comes first: with "Ring first", the watch plays only when no
+    /// ring is connected; with "Both", both play. With neither, the ring path runs (a no-op).
+    func route() -> (ring: Bool, watch: Bool) {
+        let ringOK = ringActive
+        let watchOK = watch?.available ?? false
+        switch watch?.target ?? .ringFirst {
+        case .ringFirst: return (ringOK || !watchOK, !ringOK && watchOK)
+        case .both: return (true, watchOK)
+        }
+    }
+    /// "ring", "watch", "ring + watch" or "nowhere", for logs.
+    var routeLabel: String {
+        let r = route()
+        let names = [r.ring && ringActive ? "ring" : nil, r.watch ? "watch" : nil].compactMap { $0 }
+        return names.isEmpty ? "nowhere" : names.joined(separator: " + ")
+    }
     /// A touch can be felt somewhere: on the ring, or on a watch that's listening.
-    var canDeliverTouch: Bool { isRingConnected || (watch?.canPlay ?? false) }
+    var canDeliverTouch: Bool { ringActive || (watch?.available ?? false) }
 
     /// What kind of ring it is: the model ("Colmi R09"), else the family, else the ring's own name.
     var ringName: String {
@@ -71,9 +99,10 @@ final class RingHapticsService {
     func play(_ pattern: TouchPattern) {
         stop(sendStop: false)
         lastPlayed = pattern
-        let toWatch = watch?.play(pattern) ?? false
-        // "Watch" only: skip the ring, but keep the timing so isPlaying matches what the wrist feels.
-        let onRing = !(toWatch && (watch?.replacesRing ?? false))
+        let routing = route()
+        if routing.watch { watch?.play(pattern) }
+        // Watch only: skip the ring, but keep the timing so isPlaying matches what the wrist feels.
+        let onRing = routing.ring && useRing
         let profile = self.profile
         let steps = plan(pattern, profile: profile)
         isPlaying = true
