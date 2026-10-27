@@ -33,11 +33,12 @@ Last updated 2026-10-25. Guideline numbers are from Apple's App Review Guideline
 | Calm cue | OK | Wording: "reminds you to breathe". It doesn't claim to detect or treat stress. |
 | Keep screen on during sessions | OK | Only while a session screen shows. |
 | Apple Intelligence images (Image Playground) | OK | On-device styles only (no ChatGPT styles), so no third-party AI data. Hidden on iPhones without Apple Intelligence. Private images, not shared. Uses the sheet API, not `ImageCreator` (retired in iOS 27). Branch `feature/image-playground`. |
-| Apple Watch app | To do | Companion target added in Xcode (see `KinnoraWatch/README.md`). Needs its own icon, screenshots and a working experience without the iPhone app open. Mindfulness background mode is used for "Start session": explain it in the review notes. Branch `feature/watch-extension`. |
+| Apple Watch app | To do | Companion target is in the project (`KinnoraWatch`, bundle `dev.emotionringmy.ios.watchkitapp`); first build succeeded 2026-10-27. Needs its own icon, screenshots and a working experience without the iPhone app open. Mindfulness background mode is used for "Start session": explain it in the review notes. Branch `feature/watch-extension`. |
 | App Preview video | To do | Must be screen recordings of the app only: no people, no filmed ring. Use the App Store cut in the "Kinnora explainer video script" doc. |
 | Music when the screen locks | Check | There's no `audio` background mode, so music stops when the phone is locked. Fine for review; a product decision. |
 
 ## Change log
 
+- 2026-10-27: Apple Watch target added to the Xcode project and built. Still needs its own app icon and watch screenshots before submission.
 - 2026-10-25: Strava removed from the app (no third-party account link or uploads; old tokens are cleared on launch). Removes the Strava rows from the privacy label and account deletion.
 - 2026-10-25: Note created. Added Image Playground (on-device only), the watch app, keep-screen-on and the screen-recording-only App Preview rule. Flagged the Coach's third-party AI and the reviewer-without-a-ring path as blockers.
