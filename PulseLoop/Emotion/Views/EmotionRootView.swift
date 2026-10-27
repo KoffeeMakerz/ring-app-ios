@@ -1,7 +1,6 @@
 import SwiftData
 import SwiftUI
 import UIKit
-import UIKit
 import UserNotifications
 
 enum ETab: Hashable { case home, library, train, meditate, ring }
