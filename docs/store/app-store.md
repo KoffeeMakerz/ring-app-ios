@@ -17,6 +17,8 @@ Last updated 2026-10-25. Guideline numbers are from Apple's App Review Guideline
 | HealthKit (Apple Health) | 5.1.3 | To do | Privacy policy must cover health data. Never use it for ads or sell it. Purpose strings must explain each type read and written. Request only the types the app uses. |
 | Privacy policy and nutrition label | 5.1.1 | To do | Policy URL in App Store Connect and in the app. The label must match reality, including the Coach's AI providers. (Strava was removed on 2026-10-25.) |
 | Account and data deletion | 5.1.1(v) | Check | If any feature creates an account or link (the Coach), deletion must be possible in the app. "Privacy, export & delete" exists; confirm it covers everything. |
+| Privacy policy and nutrition label | 5.1.1 | To do | Policy URL in App Store Connect and in the app. The label must match reality, including the Coach's AI providers and Strava if kept. |
+| Account and data deletion | 5.1.1(v) | Check | If any feature creates an account (Strava link, Coach), deletion must be possible in the app. "Privacy, export & delete" exists; confirm it covers everything. |
 | Background modes | 2.5.4 | Check | Declared: bluetooth-central (ring), location, fetch, processing. Location in the background must be needed by a visible feature (workouts in the original screens). Otherwise remove it. |
 | Developer and legacy screens | 2.5.19 (Oct 2026) | Check | Developer tools are DEBUG-only. Make sure the "original health screens" switch and the simulated ring can't be reached in release, and nothing undocumented is hidden. |
 | Music rights | 5.2 | Check | Songs and practice tracks were made with ElevenLabs. Commercial use needs a paid ElevenLabs plan that grants it. Keep the plan and invoices on file. |
@@ -36,6 +38,7 @@ Last updated 2026-10-25. Guideline numbers are from Apple's App Review Guideline
 | Devices (ring / watch switches, ring first) | OK | Nothing is required: with no ring or watch the app still works. Onboarding asks which devices you use. |
 | Reminders on the watch | OK | With the watch app installed, the watch delivers the reminder plan as its own notifications and the iPhone schedules none (no duplicates). A tap or "Start" plays the feeling's touch; the watch can't play a custom touch while the app is closed. |
 | Apple Watch app | To do | Companion target is in the project (`KinnoraWatch`, bundle `dev.emotionringmy.ios.watchkitapp`); first build succeeded 2026-10-27. Needs its own icon, screenshots and a working experience without the iPhone app open. Mindfulness background mode is used for "Start session": explain it in the review notes. Branch `feature/watch-extension`. |
+| Apple Watch app | To do | Companion target added in Xcode (see `KinnoraWatch/README.md`). Needs its own icon, screenshots and a working experience without the iPhone app open. Mindfulness background mode is used for "Start session": explain it in the review notes. Branch `feature/watch-extension`. |
 | App Preview video | To do | Must be screen recordings of the app only: no people, no filmed ring. Use the App Store cut in the "Kinnora explainer video script" doc. |
 | Music when the screen locks | Check | There's no `audio` background mode, so music stops when the phone is locked. Fine for review; a product decision. |
 
