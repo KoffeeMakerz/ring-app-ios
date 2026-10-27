@@ -76,6 +76,8 @@ final class WatchLink: NSObject {
     private(set) var lastSyncAt: Date?
     @ObservationIgnored private var context: ModelContext?
     @ObservationIgnored private var planObserver: NSObjectProtocol?
+    @ObservationIgnored private var saveObserver: NSObjectProtocol?
+    @ObservationIgnored private var pendingSync: Task<Void, Never>?
 
     /// Gives the link the app's data, so it can send experiences and the reminder plan to the watch.
     func attach(_ context: ModelContext) {
@@ -83,7 +85,21 @@ final class WatchLink: NSObject {
         planObserver = NotificationCenter.default.addObserver(forName: ReminderScheduler.planChanged, object: nil, queue: .main) { [weak self] _ in
             Task { @MainActor in self?.sync() }
         }
+        // Any saved change (a new, edited or deleted experience) goes to the watch too.
+        saveObserver = NotificationCenter.default.addObserver(forName: ModelContext.didSave, object: nil, queue: .main) { [weak self] _ in
+            Task { @MainActor in self?.scheduleSync() }
+        }
         sync()
+    }
+
+    /// Coalesces bursts of saves (the builder saves several times) into one sync.
+    private func scheduleSync() {
+        pendingSync?.cancel()
+        pendingSync = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(500))
+            guard !Task.isCancelled else { return }
+            self?.sync()
+        }
     }
 
     private func rebuildReminders() {
@@ -179,8 +195,9 @@ final class WatchLink: NSObject {
         isPaired = paired
         isAppInstalled = installed
         isReachable = reachable
-        // Watch app installed or removed: who delivers reminders may have changed.
-        if changed { rebuildReminders() }
+        // Watch app installed or removed: who delivers reminders may have changed (that also syncs).
+        // Otherwise sync anyway: the session may only now be activated.
+        if changed { rebuildReminders() } else { sync() }
     }
 
     /// One line for the Ring tab.
